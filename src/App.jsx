@@ -20,7 +20,7 @@ export default function App() {
   useEffect(() => {
     async function fetchInventory() {
       try {
-        const response = await fetch(CONFIG.FIREBASE_URL);
+        const response = await fetch(`${CONFIG.FIREBASE_URL}/inventory.json`);
         const data = await response.json();
         if (data) {
           const cleanData = Array.isArray(data) ? data : Object.values(data).filter(item => item !== null);
@@ -68,6 +68,8 @@ export default function App() {
     });
   };
 
+  // Find the `handleCheckout` function in your App.jsx and update it to match this:
+
   const handleCheckout = async () => {
     if (!customerName.trim() || !customerAddress.trim()) {
       alert("Please provide both your Name and Delivery Address.");
@@ -78,6 +80,7 @@ export default function App() {
     let updatedInventory = JSON.parse(JSON.stringify(inventory)); 
     let grandTotal = 0;
     let orderLines = [];
+    let orderItemsForDb = []; 
 
     cart.forEach(cartItem => {
       const productIndex = updatedInventory.findIndex(p => p.id === cartItem.productId);
@@ -88,19 +91,47 @@ export default function App() {
       if (variantIndex === -1 || variantIndex === undefined) return;
       
       product.variants[variantIndex].stockLeft -= cartItem.qty;
-      
       const itemTotal = product.variants[variantIndex].price * cartItem.qty;
       grandTotal += itemTotal;
+      
       orderLines.push(`- ${cartItem.qty}x ${product.name} (${product.variants[variantIndex].weight}) (₹${itemTotal})`);
+      
+      orderItemsForDb.push({
+        name: product.name,
+        weight: product.variants[variantIndex].weight,
+        qty: cartItem.qty,
+        price: product.variants[variantIndex].price,
+        total: itemTotal
+      });
     });
 
     try {
-      await fetch(CONFIG.FIREBASE_URL, {
+      // 1. Save stock adjustment to Inventory Tree URL
+      await fetch(`${CONFIG.FIREBASE_URL}/inventory.json`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedInventory)
       });
 
+      // 2. Automatically create persistent history logs inside Firebase Orders tree
+      const ordersUrl = CONFIG.FIREBASE_URL.includes('.json') 
+        ? CONFIG.FIREBASE_URL.replace(/([^\/]+)\.json$/, 'orders.json')
+        : `${CONFIG.FIREBASE_URL}/orders.json`;
+
+      await fetch(`${CONFIG.FIREBASE_URL}/orders.json`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerName,
+          customerAddress,
+          timestamp: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
+          items: orderItemsForDb,
+          grandTotal,
+          paymentStatus: 'pending' // <--- NEW: Default all new checkouts to pending
+        })
+      });
+
+      // 3. Trigger WhatsApp text forwarder
       const message = `*New Order - ${CONFIG.brandName}*%0A%0A*Customer:* ${customerName}%0A*Address:* ${customerAddress}%0A%0A*Items:*%0A${orderLines.join('%0A')}%0A%0A*Grand Total: ₹${grandTotal}*`;
       window.open(`https://wa.me/${atob(CONFIG.hiddenPhone)}?text=${message}`, '_blank');
 
@@ -147,7 +178,7 @@ export default function App() {
             {view === 'shop' ? (
               <>
                 <svg className="w-4 h-4 text-gray-500 hidden sm:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                <span>Admin <span className="hidden sm:inline">Panel</span></span>
+                <span>Admin Panel</span>
               </>
             ) : (
               <>

@@ -12,9 +12,10 @@ export default function ProductCard({ product, cart, updateCart }) {
     }
   }, [product.variants]);
 
-  // Reset expansion state when variant changes
+  // Reset expansion state AND image slideshow index when variant changes
   useEffect(() => {
     setIsExpanded(false);
+    setImgIndex(0);
   }, [activeVariantId]);
 
   if (!product.variants || product.variants.length === 0) return null;
@@ -25,9 +26,9 @@ export default function ProductCard({ product, cart, updateCart }) {
   
   const isOutOfStock = activeVariant.stockLeft === 0;
   const reachedLimit = currentCartQty >= activeVariant.stockLeft;
-  const productImages = product.images && product.images.length > 0 ? product.images : [];
   
-  // Logic for Read More
+  // FIXED: Pulling images directly from the active variant object instead of product
+  const productImages = activeVariant.images && activeVariant.images.length > 0 ? activeVariant.images : [];
   const descriptionText = activeVariant.description || "";
   const isLongText = descriptionText.length > 80;
   
@@ -54,7 +55,7 @@ export default function ProductCard({ product, cart, updateCart }) {
             )}
           </>
         ) : (
-          <div className="text-orange-200 text-xs">No Images Added</div>
+          <div className="text-orange-200 text-xs">No Images for this Variant</div>
         )}
       </div>
 
