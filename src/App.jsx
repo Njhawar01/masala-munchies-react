@@ -10,12 +10,24 @@ export default function App() {
   const [cart, setCart] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [category, setCategory] = useState('All');
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true); // Consolidated loading state
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
 
   const [customerName, setCustomerName] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
+
+  useEffect(() => {
+    if (isMobileCartOpen) {
+      document.body.style.overflow = 'hidden'; 
+    } else {
+      document.body.style.overflow = 'unset'; 
+    }
+
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isMobileCartOpen]);
 
   useEffect(() => {
     async function fetchInventory() {
@@ -29,11 +41,20 @@ export default function App() {
       } catch (error) {
         console.error("Failed to load inventory:", error);
       } finally {
-        setLoading(false);
+        setIsLoading(false);
       }
     }
     fetchInventory();
   }, []);
+
+  if (isLoading && inventory.length === 0) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
+        <div className="w-12 h-12 border-4 border-orange-200 border-t-orange-600 rounded-full animate-spin mb-4"></div>
+        <p className="text-sm font-bold text-gray-500 animate-pulse tracking-wide">Loading fresh snacks...</p>
+      </div>
+    );
+  }
 
   const updateCart = (productId, variantId, delta) => {
     const product = inventory.find(p => p.id === productId);
@@ -67,8 +88,6 @@ export default function App() {
       return filtered;
     });
   };
-
-  // Find the `handleCheckout` function in your App.jsx and update it to match this:
 
   const handleCheckout = async () => {
     if (!customerName.trim() || !customerAddress.trim()) {
@@ -113,11 +132,6 @@ export default function App() {
         body: JSON.stringify(updatedInventory)
       });
 
-      // 2. Automatically create persistent history logs inside Firebase Orders tree
-      const ordersUrl = CONFIG.FIREBASE_URL.includes('.json') 
-        ? CONFIG.FIREBASE_URL.replace(/([^\/]+)\.json$/, 'orders.json')
-        : `${CONFIG.FIREBASE_URL}/orders.json`;
-
       await fetch(`${CONFIG.FIREBASE_URL}/orders.json`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -127,7 +141,7 @@ export default function App() {
           timestamp: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
           items: orderItemsForDb,
           grandTotal,
-          paymentStatus: 'pending' // <--- NEW: Default all new checkouts to pending
+          paymentStatus: 'pending'
         })
       });
 
@@ -217,7 +231,7 @@ export default function App() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 pb-10 min-h-[500px]">
-              {loading ? (
+              {isLoading ? ( // FIXED: Using consolidated isLoading state
                 <div className="col-span-full text-center py-10 text-gray-500 font-bold animate-pulse">Loading fresh menu...</div>
               ) : filteredProducts.length === 0 ? (
                 <div className="col-span-full flex flex-col items-center justify-center text-gray-400 py-16 bg-white rounded-2xl border border-orange-100 shadow-xs"><p className="text-sm font-medium text-gray-500">No items found.</p></div>

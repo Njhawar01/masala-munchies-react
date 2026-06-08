@@ -1,7 +1,14 @@
 import { useState, useEffect } from 'react';
 import { CONFIG } from '../../config';
 
+const FIREBASE_API_KEY = "AIzaSyBnvtZXhUILRr5QKrw0lz6peSer2VhCWVk"; 
+
 export default function AdminDashboard({ inventory, setInventory }) {
+  const [idToken, setIdToken] = useState(null);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
   const [activeTab, setActiveTab] = useState('inventory'); 
   const [localInventory, setLocalInventory] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
@@ -20,20 +27,46 @@ export default function AdminDashboard({ inventory, setInventory }) {
   }, [inventory]);
 
   useEffect(() => {
-    if (activeTab === 'orders') {
+    // NEW: 3. Only fetch if authenticated
+    if (activeTab === 'orders' && idToken) {
       fetchOrderHistory();
     }
-  }, [activeTab]);
+  }, [activeTab, idToken]);
+
+  // NEW: 4. The Login Handler
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setIsLoggingIn(true);
+    try {
+      const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, returnSecureToken: true })
+      });
+      const data = await res.json();
+      
+      if (data.idToken) {
+        setIdToken(data.idToken);
+      } else {
+        alert(data.error.message); 
+      }
+    } catch (error) {
+      alert("Login failed. Check your internet connection.");
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
 
   const fetchOrderHistory = async () => {
+    if (!idToken) return; // Guard clause
     setLoadingOrders(true);
     try {
-      const ordersUrl = `${CONFIG.FIREBASE_URL}/orders.json`;
+      // NEW: 5. Append auth token to READ orders
+      const ordersUrl = `${CONFIG.FIREBASE_URL}/orders.json?auth=${idToken}`;
       const response = await fetch(ordersUrl);
       const data = await response.json();
       
       if (data) {
-        // FIXED: Filter out null values or empty objects without items (Ghost Cards)
         const parsedOrders = Object.keys(data)
           .filter(key => data[key] !== null && data[key].items && data[key].items.length > 0)
           .map(key => ({
@@ -52,21 +85,20 @@ export default function AdminDashboard({ inventory, setInventory }) {
     }
   };
 
-  // NEW: Function to update payment status in Firebase
   const togglePaymentStatus = async (orderId, currentStatus) => {
+    if (!idToken) return; // Guard clause
     const newStatus = currentStatus === 'paid' ? 'pending' : 'paid';
     
-    // Optimistic UI update (update screen instantly before network finishes)
     setOrders(prevOrders => prevOrders.map(order => 
       order.orderId === orderId ? { ...order, paymentStatus: newStatus } : order
     ));
 
     try {
+      // NEW: 6. Append auth token to PATCH order
       const orderPatchUrl = CONFIG.FIREBASE_URL.includes('.json') 
-        ? CONFIG.FIREBASE_URL.replace(/([^\/]+)\.json$/, `orders/${orderId}.json`)
-        : `${CONFIG.FIREBASE_URL}/orders/${orderId}.json`;
+        ? CONFIG.FIREBASE_URL.replace(/([^\/]+)\.json$/, `orders/${orderId}.json?auth=${idToken}`)
+        : `${CONFIG.FIREBASE_URL}/orders/${orderId}.json?auth=${idToken}`;
         
-      // PATCH request only updates specific fields, without overwriting the whole order
       await fetch(orderPatchUrl, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -74,7 +106,6 @@ export default function AdminDashboard({ inventory, setInventory }) {
       });
     } catch (error) {
       console.error("Failed to update payment status:", error);
-      // Revert if network fails
       setOrders(prevOrders => prevOrders.map(order => 
         order.orderId === orderId ? { ...order, paymentStatus: currentStatus } : order
       ));
@@ -176,10 +207,11 @@ export default function AdminDashboard({ inventory, setInventory }) {
   };
 
   const handleSaveToFirebase = async () => {
+    if (!idToken) return; // Guard clause
     setIsSaving(true);
     try {
-      // Change your PUT request to point to the inventory branch explicitly
-      const response = await fetch(`${CONFIG.FIREBASE_URL}/inventory.json`, {
+      // NEW: 7. Append auth token to WRITE inventory
+      const response = await fetch(`${CONFIG.FIREBASE_URL}/inventory.json?auth=${idToken}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(localInventory)
@@ -196,6 +228,43 @@ export default function AdminDashboard({ inventory, setInventory }) {
     }
   };
 
+  // NEW: 8. Intercept render if not logged in
+  if (!idToken) {
+    return (
+      <div className="flex-1 bg-gray-50 flex items-center justify-center p-4 overflow-hidden">
+        <div className="max-w-md w-full bg-white border border-gray-200 rounded-2xl shadow-xl p-8">
+          <h2 className="text-2xl font-black mb-6 text-center text-gray-900">Admin Access</h2>
+          <form onSubmit={handleLogin} className="space-y-4">
+            <input 
+              type="email" 
+              placeholder="Admin Email" 
+              value={email} 
+              onChange={e => setEmail(e.target.value)}
+              className="w-full bg-gray-50 border border-gray-200 px-4 py-3 rounded-xl focus:outline-emerald-600" 
+              required 
+            />
+            <input 
+              type="password" 
+              placeholder="Password" 
+              value={password} 
+              onChange={e => setPassword(e.target.value)}
+              className="w-full bg-gray-50 border border-gray-200 px-4 py-3 rounded-xl focus:outline-emerald-600" 
+              required 
+            />
+            <button 
+                type="submit" 
+                disabled={isLoggingIn} 
+                className="w-full bg-gray-900 text-white font-bold py-3 rounded-xl hover:bg-gray-800 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                {isLoggingIn ? "Logging in..." : "Login"}
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // --- EXISTING RENDER REMAINS IDENTICAL ---
   return (
     <div className="max-w-4xl mx-auto w-full p-4 md:p-8 flex-1">
       <div className="flex flex-col gap-4 mb-6 border-b border-gray-200 pb-2">
@@ -248,7 +317,6 @@ export default function AdminDashboard({ inventory, setInventory }) {
                       <span className="text-xs font-mono bg-gray-100 text-gray-700 px-2 py-0.5 rounded-md font-bold">ID: {order.orderId.substring(1, 7)}</span>
                       <span className="text-[10px] text-gray-400 font-bold bg-gray-50 border border-gray-200 px-2 py-0.5 rounded-md">{order.timestamp}</span>
                       
-                      {/* NEW: Payment Toggle Button */}
                       <button 
                         onClick={() => togglePaymentStatus(order.orderId, order.paymentStatus || 'pending')}
                         className={`ml-auto text-[10px] font-extrabold px-3 py-1 rounded-md border transition-all cursor-pointer active:scale-95 flex items-center gap-1 ${
@@ -291,7 +359,6 @@ export default function AdminDashboard({ inventory, setInventory }) {
         </div>
       ) : (
         <div className="space-y-4">
-           {/* ... [Rest of your standard Inventory View rendering logic remains identical] ... */}
           {localInventory.map(product => {
             const isExpanded = expandedProductId === product.id;
 
