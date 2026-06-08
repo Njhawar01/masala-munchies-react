@@ -8,6 +8,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Create .env file from GitHub Secrets
+        run: |
+          echo "VITE_FIREBASE_URL=${{ secrets.VITE_FIREBASE_URL }}" >> .env
+          echo "VITE_PHONE_NUMBER=${{ secrets.VITE_PHONE_NUMBER }}" >> .env
+          echo "VITE_BRAND_NAME=${{ secrets.VITE_BRAND_NAME }}" >> .env
+          echo "VITE_FIREBASE_API_KEY=${{ secrets.VITE_FIREBASE_API_KEY }}" >> .env
       - run: npm ci && npm run build
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:

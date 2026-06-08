@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react';
 import { CONFIG } from '../../config';
 
-const FIREBASE_API_KEY = "AIzaSyBnvtZXhUILRr5QKrw0lz6peSer2VhCWVk"; 
-
 export default function AdminDashboard({ inventory, setInventory }) {
   const [idToken, setIdToken] = useState(null);
   const [email, setEmail] = useState('');
@@ -38,7 +36,7 @@ export default function AdminDashboard({ inventory, setInventory }) {
     e.preventDefault();
     setIsLoggingIn(true);
     try {
-      const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_API_KEY}`, {
+      const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${CONFIG.firebaseApiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password, returnSecureToken: true })
