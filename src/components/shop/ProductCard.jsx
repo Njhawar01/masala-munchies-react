@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
+import ProductImages from './ProductImages';
 
 export default function ProductCard({ product, cart, updateCart }) {
   const defaultVariantId = product.variants && product.variants.length > 0 ? product.variants[0].variantId : null;
   const [activeVariantId, setActiveVariantId] = useState(defaultVariantId);
   const [isExpanded, setIsExpanded] = useState(false);
-  const [imgIndex, setImgIndex] = useState(0);
 
   useEffect(() => {
     if (product.variants?.length > 0) {
@@ -12,10 +12,9 @@ export default function ProductCard({ product, cart, updateCart }) {
     }
   }, [product.variants]);
 
-  // Reset expansion state AND image slideshow index when variant changes
+  // Reset expansion state when variant changes
   useEffect(() => {
     setIsExpanded(false);
-    setImgIndex(0);
   }, [activeVariantId]);
 
   if (!product.variants || product.variants.length === 0) return null;
@@ -27,35 +26,22 @@ export default function ProductCard({ product, cart, updateCart }) {
   const isOutOfStock = activeVariant.stockLeft === 0;
   const reachedLimit = currentCartQty >= activeVariant.stockLeft;
   
-  // FIXED: Pulling images directly from the active variant object instead of product
+  // Pulling images directly from the active variant object
   const productImages = activeVariant.images && activeVariant.images.length > 0 ? activeVariant.images : [];
   const descriptionText = activeVariant.description || "";
   const isLongText = descriptionText.length > 80;
   
   return (
     <div className="bg-[#fffdf8] rounded-2xl border border-orange-50 overflow-hidden hover:shadow-md transition-all flex flex-col h-full relative">
-      <div className="h-48 bg-white flex items-center justify-center relative border-b border-orange-50 group">
+      
+      {/* NEW INTEGRATION: Image Section handles loading, mobile swipe, and click-to-enlarge */}
+      <div className={`bg-white border-b border-orange-50 relative group ${isOutOfStock ? 'grayscale opacity-50' : ''}`}>
         {productImages.length > 0 ? (
-          <>
-            <img src={productImages[imgIndex]} alt={product.name} className={`w-full h-full object-contain p-4 ${isOutOfStock ? 'grayscale opacity-50' : ''}`} />
-            {productImages.length > 1 && (
-              <>
-                <button onClick={() => setImgIndex((prev) => (prev === 0 ? productImages.length - 1 : prev - 1))} className="absolute left-2 p-1.5 bg-white/80 hover:bg-white rounded-full shadow-sm text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
-                </button>
-                <button onClick={() => setImgIndex((prev) => (prev === productImages.length - 1 ? 0 : prev + 1))} className="absolute right-2 p-1.5 bg-white/80 hover:bg-white rounded-full shadow-sm text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path></svg>
-                </button>
-                <div className="absolute bottom-2 flex gap-1">
-                  {productImages.map((_, idx) => (
-                    <div key={idx} className={`h-1.5 rounded-full transition-all ${idx === imgIndex ? 'w-4 bg-orange-500' : 'w-1.5 bg-gray-300'}`} />
-                  ))}
-                </div>
-              </>
-            )}
-          </>
+          <ProductImages images={productImages} productName={product.name} />
         ) : (
-          <div className="text-orange-200 text-xs">No Images for this Variant</div>
+          <div className="h-48 flex items-center justify-center text-orange-200 text-xs">
+            No Images for this Variant
+          </div>
         )}
       </div>
 
