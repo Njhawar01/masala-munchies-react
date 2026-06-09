@@ -10,7 +10,7 @@ export default function AdminDashboard({ inventory, setInventory }) {
   const [activeTab, setActiveTab] = useState('inventory'); 
   const [localInventory, setLocalInventory] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
-  const [newImageUrl, setNewImageUrl] = useState({}); 
+  const [uploadingKey, setUploadingKey] = useState(null); // Tracks active uploading variant
   const [imageError, setImageError] = useState({}); 
   const [expandedProductId, setExpandedProductId] = useState(null);
   const [isAddingNewCategory, setIsAddingNewCategory] = useState({});
@@ -25,13 +25,11 @@ export default function AdminDashboard({ inventory, setInventory }) {
   }, [inventory]);
 
   useEffect(() => {
-    // NEW: 3. Only fetch if authenticated
     if (activeTab === 'orders' && idToken) {
       fetchOrderHistory();
     }
   }, [activeTab, idToken]);
 
-  // NEW: 4. The Login Handler
   const handleLogin = async (e) => {
     e.preventDefault();
     setIsLoggingIn(true);
@@ -56,10 +54,9 @@ export default function AdminDashboard({ inventory, setInventory }) {
   };
 
   const fetchOrderHistory = async () => {
-    if (!idToken) return; // Guard clause
+    if (!idToken) return; 
     setLoadingOrders(true);
     try {
-      // NEW: 5. Append auth token to READ orders
       const ordersUrl = `${CONFIG.FIREBASE_URL}/orders.json?auth=${idToken}`;
       const response = await fetch(ordersUrl);
       const data = await response.json();
@@ -84,7 +81,7 @@ export default function AdminDashboard({ inventory, setInventory }) {
   };
 
   const togglePaymentStatus = async (orderId, currentStatus) => {
-    if (!idToken) return; // Guard clause
+    if (!idToken) return; 
     const newStatus = currentStatus === 'paid' ? 'pending' : 'paid';
     
     setOrders(prevOrders => prevOrders.map(order => 
@@ -92,7 +89,6 @@ export default function AdminDashboard({ inventory, setInventory }) {
     ));
 
     try {
-      // NEW: 6. Append auth token to PATCH order
       const orderPatchUrl = CONFIG.FIREBASE_URL.includes('.json') 
         ? CONFIG.FIREBASE_URL.replace(/([^\/]+)\.json$/, `orders/${orderId}.json?auth=${idToken}`)
         : `${CONFIG.FIREBASE_URL}/orders/${orderId}.json?auth=${idToken}`;
@@ -145,25 +141,59 @@ export default function AdminDashboard({ inventory, setInventory }) {
     }
   };
 
-  const handleAddImage = (productId, variantId) => {
-    const key = `${productId}_${variantId}`;
-    const url = newImageUrl[key];
-    if (!url || !url.trim()) {
-      setImageError(prev => ({ ...prev, [key]: "URL cannot be empty!" }));
-      return;
-    }
-    setImageError(prev => ({ ...prev, [key]: "" })); 
+  // NEW: Firebase Native Storage REST Upload Handler
+  const handleImageUpload = async (e, productId, variantId) => {
+  const files = Array.from(e.target.files || []);
+  if (files.length === 0) return;
+
+  const variantKey = `${productId}_${variantId}`;
+  setUploadingKey(variantKey);
+  setImageError(prev => ({ ...prev, [variantKey]: "" }));
+
+  const bucketName = CONFIG.storageBucket || CONFIG.FIREBASE_URL.match(/https:\/\/(.+?)(-default-rtdb)?\.firebaseio\.com/)?.[1] + ".firebasestorage.app";
+
+  try {
+    // Process all uploads simultaneously
+    const uploadPromises = files.map(async (file) => {
+      const storagePath = `products/${productId}/${variantId}_${Date.now()}_${file.name}`;
+      const uploadUrl = `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o?name=${encodeURIComponent(storagePath)}`;
+
+      const response = await fetch(uploadUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': file.type,
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: file
+      });
+
+      if (!response.ok) throw new Error("Storage transmission failed.");
+
+      const data = await response.json();
+      return `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodeURIComponent(data.name)}?alt=media&token=${data.downloadTokens}`;
+    });
+
+    const uploadedUrls = await Promise.all(uploadPromises);
+
+    // Append all new URLs to the state at once
     setLocalInventory(prev => prev.map(p => {
       if (p.id === productId) {
         return {
           ...p,
-          variants: p.variants.map(v => v.variantId === variantId ? { ...v, images: [...(v.images || []), url.trim()] } : v)
+          variants: p.variants.map(v => v.variantId === variantId ? { ...v, images: [...(v.images || []), ...uploadedUrls] } : v)
         };
       }
       return p;
     }));
-    setNewImageUrl(prev => ({ ...prev, [key]: '' })); 
-  };
+
+  } catch (error) {
+    console.error(error);
+    setImageError(prev => ({ ...prev, [variantKey]: "One or more uploads failed. Check Firebase Rules." }));
+  } finally {
+    setUploadingKey(null);
+    e.target.value = ""; 
+  }
+};
 
   const handleRemoveImage = (productId, variantId, imgIndex) => {
     setLocalInventory(prev => prev.map(p => {
@@ -205,10 +235,9 @@ export default function AdminDashboard({ inventory, setInventory }) {
   };
 
   const handleSaveToFirebase = async () => {
-    if (!idToken) return; // Guard clause
+    if (!idToken) return; 
     setIsSaving(true);
     try {
-      // NEW: 7. Append auth token to WRITE inventory
       const response = await fetch(`${CONFIG.FIREBASE_URL}/inventory.json?auth=${idToken}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -226,7 +255,6 @@ export default function AdminDashboard({ inventory, setInventory }) {
     }
   };
 
-  // NEW: 8. Intercept render if not logged in
   if (!idToken) {
     return (
       <div className="flex-1 bg-gray-50 flex items-center justify-center p-4 overflow-hidden">
@@ -262,7 +290,6 @@ export default function AdminDashboard({ inventory, setInventory }) {
     );
   }
 
-  // --- EXISTING RENDER REMAINS IDENTICAL ---
   return (
     <div className="max-w-4xl mx-auto w-full p-4 md:p-8 flex-1">
       <div className="flex flex-col gap-4 mb-6 border-b border-gray-200 pb-2">
@@ -456,21 +483,23 @@ export default function AdminDashboard({ inventory, setInventory }) {
                                     </div>
                                   ))}
                                 </div>
-                                <div className="flex gap-2">
+                                
+                                {/* UPGRADED: Core file uploader system directly to Firebase Storage */}
+                                <div className="flex items-center gap-3">
                                   <div className="flex-1">
                                     <input 
-                                      type="text" 
-                                      placeholder="Paste web URL for this size option..." 
-                                      value={newImageUrl[variantKey] || ''} 
-                                      onChange={(e) => {
-                                        setNewImageUrl(prev => ({...prev, [variantKey]: e.target.value}));
-                                        setImageError(prev => ({...prev, [variantKey]: ''}));
-                                      }}
-                                      className={`w-full bg-white border ${imageError[variantKey] ? 'border-red-400' : 'border-gray-200'} px-2.5 py-1.5 rounded-lg text-xs focus:outline-emerald-600`} 
+                                      type="file" 
+                                      accept="image/*" 
+                                      multiple
+                                      onChange={(e) => handleImageUpload(e, product.id, variant.variantId)}
+                                      disabled={uploadingKey === variantKey}
+                                      className="w-full bg-white border border-gray-200 px-2.5 py-1.5 rounded-lg text-xs focus:outline-emerald-600 file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-xs file:font-bold file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100 cursor-pointer disabled:opacity-50" 
                                     />
                                     {imageError[variantKey] && <span className="text-[9px] text-red-500 font-bold mt-0.5 block">{imageError[variantKey]}</span>}
                                   </div>
-                                  <button onClick={() => handleAddImage(product.id, variant.variantId)} className="px-3 py-1.5 bg-white border border-orange-200 text-orange-600 font-bold text-xs rounded-lg hover:bg-orange-50 cursor-pointer shrink-0">Add</button>
+                                  {uploadingKey === variantKey && (
+                                    <span className="text-xs text-orange-600 font-extrabold animate-pulse shrink-0">Uploading...</span>
+                                  )}
                                 </div>
                               </div>
 
