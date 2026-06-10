@@ -209,11 +209,56 @@ export default function App() {
       ) : (
         <div className="flex-1 max-w-7xl mx-auto w-full flex flex-col lg:flex-row gap-8 p-4 md:p-8">
           <main className="flex-1 overflow-hidden">
-            <div className="bg-gradient-to-r from-orange-500 to-orange-400 rounded-2xl p-8 md:p-12 text-white shadow-xs mb-8 relative overflow-hidden">
-              <div className="absolute -right-20 -top-20 w-96 h-96 bg-white opacity-10 rounded-full blur-2xl"></div>
-              <span className="inline-block px-3 py-1 bg-white/20 rounded-full text-xs font-bold tracking-wider uppercase mb-4 backdrop-blur-xs">Pure Vegetarian • Premium Quality</span>
-              <h2 className="text-4xl md:text-5xl font-bold brand-font leading-tight mb-4 shadow-xs">Crispy Khakhras &<br />Traditional Pickles</h2>
-              <p className="text-orange-50 max-w-md text-sm md:text-base">Handcrafted, authentic home-style flavors brought straight to your doorstep.</p>
+            
+            {/* Premium Refined Orange Hero Banner */}
+            <div className="bg-gradient-to-br from-orange-600 via-orange-500 to-amber-600 rounded-3xl p-8 md:p-14 text-white shadow-xs mb-4 relative overflow-hidden border border-white/10">
+              <div className="absolute -right-20 -top-20 w-96 h-96 bg-white/10 rounded-full blur-3xl pointer-events-none"></div>
+              <div className="absolute -left-20 -bottom-20 w-96 h-96 bg-amber-400/20 rounded-full blur-3xl pointer-events-none"></div>
+              
+              <div className="relative z-10 max-w-2xl">
+                <span className="inline-block px-3 py-1 bg-white/20 border border-white/10 rounded-full text-[11px] font-bold tracking-widest uppercase mb-4 backdrop-blur-xs text-orange-50">
+                  Premium Quality Assured
+                </span>
+                <h2 className="text-4xl md:text-5.5xl font-black brand-font leading-tight mb-4 tracking-tight drop-shadow-xs">
+                  Authentic Home-Style Goodness.
+                </h2>
+                <p className="text-orange-50/90 max-w-xl text-sm md:text-base font-normal leading-relaxed">
+                  Pure, preservative-free snacks made the traditional way. Experience the crunch of perfection in every bite.
+                </p>
+              </div>
+            </div>
+
+            {/* Trust Badges - Placed cleanly outside yet closely connected */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8">
+              <div className="flex items-center gap-3 bg-white border border-orange-100/60 p-3.5 rounded-2xl shadow-[0_2px_8px_rgba(234,88,12,0.02)] hover:border-orange-200 transition-all duration-200 group">
+                <div className="w-8 h-8 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-gray-900 tracking-wide">100% Vegetarian</h4>
+                  <p className="text-[11px] text-gray-400 font-medium">Pure veggie ingredients</p>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-3 bg-white border border-orange-100/60 p-3.5 rounded-2xl shadow-[0_2px_8px_rgba(234,88,12,0.02)] hover:border-orange-200 transition-all duration-200 group">
+                <div className="w-8 h-8 rounded-xl bg-orange-50 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                  <svg className="w-4 h-4 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-gray-900 tracking-wide">No Added Preservatives</h4>
+                  <p className="text-[11px] text-gray-400 font-medium">Zero chemical additives</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 bg-white border border-orange-100/60 p-3.5 rounded-2xl shadow-[0_2px_8px_rgba(234,88,12,0.02)] hover:border-orange-200 transition-all duration-200 group">
+                <div className="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                  <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-gray-900 tracking-wide">Freshly Made</h4>
+                  <p className="text-[11px] text-gray-400 font-medium">Prepared in daily batches</p>
+                </div>
+              </div>
             </div>
 
             <div className="bg-white p-4 rounded-2xl border border-orange-100 shadow-xs mb-8">
@@ -221,17 +266,17 @@ export default function App() {
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                 </div>
-                <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search for snacks, khakhras, pickles..." className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm" />
+                <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Craving something specific? Search here..." className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500 text-sm" />
               </div>
               <nav className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
                 {dynamicCategories.map(cat => (
-                  <button key={cat} onClick={() => setCategory(cat)} className={`px-5 py-2 rounded-xl text-sm font-semibold transition-colors whitespace-nowrap cursor-pointer ${category === cat ? 'bg-[#ea580c] text-white shadow-xs' : 'bg-gray-50 text-gray-600 hover:bg-orange-50 border border-transparent'}`}>{cat}</button>
+                  <button key={cat} onClick={() => setCategory(cat)} className={`px-5 py-2 rounded-xl text-sm font-semibold transition-all duration-200 transform hover:scale-105 active:scale-95 whitespace-nowrap cursor-pointer ${category === cat ? 'bg-[#ea580c] text-white shadow-xs' : 'bg-gray-50 text-gray-600 hover:bg-orange-50 border border-transparent'}`}>{cat}</button>
                 ))}
               </nav>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 pb-10 min-h-[500px]">
-              {isLoading ? ( // FIXED: Using consolidated isLoading state
+              {isLoading ? ( 
                 <div className="col-span-full text-center py-10 text-gray-500 font-bold animate-pulse">Loading fresh menu...</div>
               ) : filteredProducts.length === 0 ? (
                 <div className="col-span-full flex flex-col items-center justify-center text-gray-400 py-16 bg-white rounded-2xl border border-orange-100 shadow-xs"><p className="text-sm font-medium text-gray-500">No items found.</p></div>
