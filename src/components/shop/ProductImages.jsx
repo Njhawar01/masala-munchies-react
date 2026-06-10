@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 
-// 1. Helper Component (Handles individual image loading states)
 const ImageWithLoader = ({ src, alt, onClick }) => {
   const [isLoaded, setIsLoaded] = useState(false);
 
@@ -25,28 +24,37 @@ const ImageWithLoader = ({ src, alt, onClick }) => {
   );
 };
 
-// 2. Main Gallery Component
 export default function ProductImages({ images, productName }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  
-  // NEW: Interactive Zoom States
   const [isZoomed, setIsZoomed] = useState(false);
   const [zoomOrigin, setZoomOrigin] = useState('center');
 
   const scrollContainerRef = useRef(null);
   const isProgrammaticScroll = useRef(false);
 
+  // Touch tracking for mobile swipe in modal
+  const [touchStart, setTouchStart] = useState(null);
+  const [touchEnd, setTouchEnd] = useState(null);
+  const minSwipeDistance = 40;
+
   if (!images || images.length === 0) return null;
+
+  // FIXED Point 3: Lock background scrolling when modal is open
+  useEffect(() => {
+    if (isModalOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => { document.body.style.overflow = 'unset'; };
+  }, [isModalOpen]);
 
   const navigateToImage = (index) => {
     if (scrollContainerRef.current) {
       const width = scrollContainerRef.current.clientWidth;
-      
-      // Reset zoom state whenever changing to a different image
       setIsZoomed(false);
       setZoomOrigin('center');
-      
       isProgrammaticScroll.current = true;
       setCurrentIndex(index);
       
@@ -63,18 +71,14 @@ export default function ProductImages({ images, productName }) {
 
   const handleScroll = (e) => {
     if (isProgrammaticScroll.current) return;
-
     const scrollLeft = e.target.scrollLeft;
     const width = e.target.clientWidth;
     if (width > 0) {
       const newIndex = Math.round(scrollLeft / width);
-      if (newIndex !== currentIndex) {
-        setCurrentIndex(newIndex);
-      }
+      if (newIndex !== currentIndex) setCurrentIndex(newIndex);
     }
   };
 
-  // NEW: Tracks pointer position to pan the image dynamically while zoomed
   const handleMouseMove = (e) => {
     if (!isZoomed) return;
     const { left, top, width, height } = e.currentTarget.getBoundingClientRect();
@@ -83,9 +87,8 @@ export default function ProductImages({ images, productName }) {
     setZoomOrigin(`${x}% ${y}%`);
   };
 
-  // NEW: Handles smart toggle between standard view and pinpoint zoom
   const handleImageClick = (e) => {
-    e.stopPropagation(); // Prevents backdrop click from closing modal
+    e.stopPropagation();
     if (isZoomed) {
       setIsZoomed(false);
       setZoomOrigin('center');
@@ -98,25 +101,44 @@ export default function ProductImages({ images, productName }) {
     }
   };
 
-  // Keyboard controls for modal view
+  // FIXED Point 2: Mobile Touch Handlers for the Modal
+  const onTouchStart = (e) => {
+    setTouchEnd(null);
+    setTouchStart(e.targetTouches[0].clientX);
+  };
+
+  const onTouchMove = (e) => {
+    setTouchEnd(e.targetTouches[0].clientX);
+  };
+
+  const onTouchEndEvent = () => {
+    if (!touchStart || !touchEnd || isZoomed) return;
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > minSwipeDistance;
+    const isRightSwipe = distance < -minSwipeDistance;
+    
+    if (isLeftSwipe) {
+      navigateToImage((currentIndex + 1) % images.length);
+    }
+    if (isRightSwipe) {
+      navigateToImage(currentIndex === 0 ? images.length - 1 : currentIndex - 1);
+    }
+  };
+
   useEffect(() => {
     if (!isModalOpen) return;
-
     const handleKeyDown = (e) => {
       if (e.key === 'ArrowRight') {
         e.preventDefault(); 
-        const nextIndex = (currentIndex + 1) % images.length;
-        navigateToImage(nextIndex);
+        navigateToImage((currentIndex + 1) % images.length);
       } else if (e.key === 'ArrowLeft') {
         e.preventDefault();
-        const prevIndex = (currentIndex - 1 + images.length) % images.length;
-        navigateToImage(prevIndex);
+        navigateToImage((currentIndex - 1 + images.length) % images.length);
       } else if (e.key === 'Escape') {
         setIsModalOpen(false);
         setIsZoomed(false);
       }
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isModalOpen, currentIndex, images.length]);
@@ -124,7 +146,6 @@ export default function ProductImages({ images, productName }) {
   return (
     <div className="relative w-full h-48 md:h-52 group/gallery">
       
-      {/* Swipeable Gallery Container */}
       <div 
         ref={scrollContainerRef}
         onScroll={handleScroll}
@@ -141,7 +162,6 @@ export default function ProductImages({ images, productName }) {
         ))}
       </div>
 
-      {/* Desktop Hover Navigation Arrows */}
       {images.length > 1 && (
         <>
           <button 
@@ -159,7 +179,6 @@ export default function ProductImages({ images, productName }) {
         </>
       )}
 
-      {/* Slide indicator dots */}
       {images.length > 1 && (
         <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1 bg-black/20 px-2 py-1 rounded-full backdrop-blur-xs z-10">
           {images.map((_, i) => (
@@ -172,13 +191,14 @@ export default function ProductImages({ images, productName }) {
         </div>
       )}
 
-      {/* Enlarged Lightbox Modal with Pan & Zoom */}
       {isModalOpen && (
         <div 
           className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-4 backdrop-blur-md overflow-hidden"
           onClick={() => { setIsModalOpen(false); setIsZoomed(false); }} 
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEndEvent}
         >
-          {/* Close button */}
           <button 
             onClick={() => { setIsModalOpen(false); setIsZoomed(false); }}
             className="absolute top-6 right-6 text-white hover:text-gray-300 bg-white/10 p-2.5 rounded-full cursor-pointer transition-all z-50"
@@ -188,25 +208,24 @@ export default function ProductImages({ images, productName }) {
             </svg>
           </button>
 
-          {/* Modal Navigation Arrows (hidden when zoomed to keep interactions clean) */}
           {images.length > 1 && !isZoomed && (
             <>
+              {/* Arrow buttons are now hidden on smaller touch screens to encourage natural swiping, but visible on tablets/desktops */}
               <button 
                 onClick={(e) => { e.stopPropagation(); navigateToImage(currentIndex === 0 ? images.length - 1 : currentIndex - 1); }}
-                className="absolute left-4 text-white hover:bg-white/10 p-3 rounded-full cursor-pointer transition-all z-10"
+                className="hidden md:block absolute left-4 text-white hover:bg-white/10 p-3 rounded-full cursor-pointer transition-all z-10"
               >
                 <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7"></path></svg>
               </button>
               <button 
                 onClick={(e) => { e.stopPropagation(); navigateToImage((currentIndex + 1) % images.length); }}
-                className="absolute right-4 text-white hover:bg-white/10 p-3 rounded-full cursor-pointer transition-all z-10"
+                className="hidden md:block absolute right-4 text-white hover:bg-white/10 p-3 rounded-full cursor-pointer transition-all z-10"
               >
                 <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7"></path></svg>
               </button>
             </>
           )}
 
-          {/* Wrapper to clip boundaries during deep scales */}
           <div className="max-w-full max-h-[85vh] overflow-hidden rounded-md flex items-center justify-center">
             <img 
               src={images[currentIndex]} 

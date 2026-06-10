@@ -10,7 +10,7 @@ export default function AdminDashboard({ inventory, setInventory }) {
   const [activeTab, setActiveTab] = useState('inventory'); 
   const [localInventory, setLocalInventory] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
-  const [uploadingKey, setUploadingKey] = useState(null); // Tracks active uploading variant
+  const [uploadingKey, setUploadingKey] = useState(null); 
   const [imageError, setImageError] = useState({}); 
   const [expandedProductId, setExpandedProductId] = useState(null);
   const [isAddingNewCategory, setIsAddingNewCategory] = useState({});
@@ -115,6 +115,7 @@ export default function AdminDashboard({ inventory, setInventory }) {
       id: newId,
       name: "New Product Name",
       category: "Snacks", 
+      containsOnionGarlic: false, // <-- Added default state here
       variants: [{ variantId: newId + 'v', weight: "200g", price: 0, stockLeft: 0, description: "", images: [] }]
     };
     setLocalInventory([newProduct, ...localInventory]);
@@ -141,7 +142,6 @@ export default function AdminDashboard({ inventory, setInventory }) {
     }
   };
 
-  // NEW: Firebase Native Storage REST Upload Handler
   const handleImageUpload = async (e, productId, variantId) => {
   const files = Array.from(e.target.files || []);
   if (files.length === 0) return;
@@ -153,7 +153,6 @@ export default function AdminDashboard({ inventory, setInventory }) {
   const bucketName = CONFIG.storageBucket || CONFIG.FIREBASE_URL.match(/https:\/\/(.+?)(-default-rtdb)?\.firebaseio\.com/)?.[1] + ".firebasestorage.app";
 
   try {
-    // Process all uploads simultaneously
     const uploadPromises = files.map(async (file) => {
       const storagePath = `products/${productId}/${variantId}_${Date.now()}_${file.name}`;
       const uploadUrl = `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o?name=${encodeURIComponent(storagePath)}`;
@@ -175,7 +174,6 @@ export default function AdminDashboard({ inventory, setInventory }) {
 
     const uploadedUrls = await Promise.all(uploadPromises);
 
-    // Append all new URLs to the state at once
     setLocalInventory(prev => prev.map(p => {
       if (p.id === productId) {
         return {
@@ -390,17 +388,28 @@ export default function AdminDashboard({ inventory, setInventory }) {
             return (
               <div key={product.id} className="bg-white border border-gray-200 rounded-xl shadow-xs overflow-hidden transition-all">
                 <div 
-                  className="flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 cursor-pointer border-b border-transparent"
+                  className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 cursor-pointer border-b border-transparent gap-2 sm:gap-0"
                   onClick={() => setExpandedProductId(isExpanded ? null : product.id)}
                 >
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <h3 className="font-bold text-gray-900 text-base">{product.name || 'Unnamed Product'}</h3>
                     <span className="text-[10px] font-bold uppercase tracking-wider bg-orange-50 border border-orange-100 text-orange-700 px-2.5 py-0.5 rounded-md w-max">
                       {product.category || 'No Category'}
                     </span>
+                    
+                    {/* NEW: Dynamic Tag Badge in Collapsed View */}
+                    {product.containsOnionGarlic ? (
+                      <span className="text-[10px] font-bold uppercase tracking-wider bg-red-50 border border-red-100 text-red-700 px-2.5 py-0.5 rounded-md w-max">
+                        Contains Onion & Garlic
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-bold uppercase tracking-wider bg-emerald-50 border border-emerald-100 text-emerald-700 px-2.5 py-0.5 rounded-md w-max">
+                        No Onion/Garlic
+                      </span>
+                    )}
                   </div>
-                  <div className="flex items-center gap-4">
-                    <span className="text-xs text-gray-400 hidden sm:block">{product.variants?.length || 0} Variants</span>
+                  <div className="flex items-center justify-between w-full sm:w-auto gap-4">
+                    <span className="text-xs text-gray-400">{product.variants?.length || 0} Variants</span>
                     <svg className={`w-5 h-5 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
                   </div>
                 </div>
@@ -440,6 +449,20 @@ export default function AdminDashboard({ inventory, setInventory }) {
                             />
                           )}
                         </div>
+                      </div>
+
+                      {/* NEW: Onion & Garlic Checkbox Editor */}
+                      <div className="md:col-span-2 mt-1 mb-2 bg-red-50/50 border border-red-100 p-3 rounded-lg flex items-center gap-3 w-fit">
+                        <input 
+                          type="checkbox" 
+                          id={`onionGarlicCheck-${product.id}`}
+                          checked={!!product.containsOnionGarlic}
+                          onChange={(e) => updateProductField(product.id, 'containsOnionGarlic', e.target.checked)}
+                          className="w-4 h-4 text-red-600 rounded border-gray-300 focus:ring-red-500 cursor-pointer"
+                        />
+                        <label htmlFor={`onionGarlicCheck-${product.id}`} className="text-sm font-bold text-gray-800 cursor-pointer select-none">
+                          Product Contains <span className="text-red-700">Onion & Garlic</span>
+                        </label>
                       </div>
                     </div>
 
@@ -484,7 +507,6 @@ export default function AdminDashboard({ inventory, setInventory }) {
                                   ))}
                                 </div>
                                 
-                                {/* UPGRADED: Core file uploader system directly to Firebase Storage */}
                                 <div className="flex items-center gap-3">
                                   <div className="flex-1">
                                     <input 

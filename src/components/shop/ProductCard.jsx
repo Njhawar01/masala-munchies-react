@@ -47,10 +47,31 @@ export default function ProductCard({ product, cart, updateCart }) {
 
       <div className="p-5 flex flex-col flex-grow">
         <div className="flex items-start justify-between gap-2 mb-1">
-          <h3 className="font-bold text-gray-900 text-base leading-tight">{product.name}</h3>
+          <div className="flex items-center gap-2">
+            {/* Vegetarian Green Dot Indicator */}
+            <div className="flex items-center justify-center w-3.5 h-3.5 border-[1.5px] border-emerald-700 rounded-[2px] shrink-0 bg-white">
+              <div className="w-1.5 h-1.5 bg-emerald-700 rounded-full"></div>
+            </div>
+            <h3 className="font-bold text-gray-900 text-base leading-tight">{product.name}</h3>
+          </div>
+          
           {!isOutOfStock && activeVariant.stockLeft <= 5 && (
             <span className="text-[9px] font-extrabold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded-md tracking-wide animate-pulse shrink-0">
               ONLY {activeVariant.stockLeft} LEFT
+            </span>
+          )}
+        </div>
+
+        {/* Onion/Garlic Tags */}
+        <div className="flex gap-2 mb-2">
+          {product.containsOnionGarlic && (
+            <span className="text-[9px] font-extrabold text-purple-700 bg-purple-50 border border-purple-200 px-1.5 py-0.5 rounded-md tracking-wide shrink-0">
+              CONTAINS ONION/GARLIC
+            </span>
+          )}
+          {product.noOnionGarlic && (
+            <span className="text-[9px] font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md tracking-wide shrink-0">
+              NO ONION/GARLIC
             </span>
           )}
         </div>
