@@ -34,8 +34,16 @@ export default function ProductCard({ product, cart, updateCart }) {
   return (
     <div className="bg-[#fffdf8] rounded-2xl border border-orange-50 overflow-hidden hover:shadow-md transition-all flex flex-col h-full relative">
       
-      {/* NEW INTEGRATION: Image Section handles loading, mobile swipe, and click-to-enlarge */}
+      {/* Image Section & Bestseller Badge */}
       <div className={`bg-white border-b border-orange-50 relative group ${isOutOfStock ? 'grayscale opacity-50' : ''}`}>
+        
+        {/* Dynamic DB Bestseller Tag */}
+        {product.isBestseller && (
+          <span className="absolute top-3 left-3 z-10 w-fit whitespace-nowrap bg-gradient-to-r from-amber-500 to-orange-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-md tracking-wide uppercase shadow-sm flex items-center gap-1 select-none">
+            ★ Bestseller
+          </span>
+        )}
+
         {productImages.length > 0 ? (
           <ProductImages images={productImages} productName={product.name} />
         ) : (

@@ -10,7 +10,7 @@ export default function App() {
   const [cart, setCart] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [category, setCategory] = useState('All');
-  const [isLoading, setIsLoading] = useState(true); // Consolidated loading state
+  const [isLoading, setIsLoading] = useState(true); 
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
 
@@ -89,15 +89,31 @@ export default function App() {
     });
   };
 
+  const clearCart = () => {
+    setCart([]);
+    setIsMobileCartOpen(false);
+  };
+
+  const cartTotal = cart.reduce((total, item) => {
+    const product = inventory.find(p => p.id === item.productId);
+    const variant = product?.variants?.find(v => v.variantId === item.variantId);
+    return total + (variant ? variant.price * item.qty : 0);
+  }, 0);
+
   const handleCheckout = async () => {
     if (!customerName.trim() || !customerAddress.trim()) {
       alert("Please provide both your Name and Delivery Address.");
       return;
     }
 
+    // Code-level enforcement for the ₹200 minimum threshold
+    if (cartTotal < 200) {
+      alert("Minimum order value must be ₹200 to place an order.");
+      return;
+    }
+
     setIsCheckingOut(true);
     let updatedInventory = JSON.parse(JSON.stringify(inventory)); 
-    let grandTotal = 0;
     let orderLines = [];
     let orderItemsForDb = []; 
 
@@ -111,7 +127,6 @@ export default function App() {
       
       product.variants[variantIndex].stockLeft -= cartItem.qty;
       const itemTotal = product.variants[variantIndex].price * cartItem.qty;
-      grandTotal += itemTotal;
       
       orderLines.push(`- ${cartItem.qty}x ${product.name} (${product.variants[variantIndex].weight}) (₹${itemTotal})`);
       
@@ -124,8 +139,11 @@ export default function App() {
       });
     });
 
+    // Discount calculations: Only apply 5% off (capped at ₹50) if cartTotal >= 200
+    const discount = cartTotal >= 200 ? Math.round(Math.min(cartTotal * 0.05, 50)) : 0;
+    const grandTotal = cartTotal - discount;
+
     try {
-      // 1. Save stock adjustment to Inventory Tree URL
       await fetch(`${CONFIG.FIREBASE_URL}/inventory.json`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -140,13 +158,15 @@ export default function App() {
           customerAddress,
           timestamp: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
           items: orderItemsForDb,
-          grandTotal,
+          subtotal: cartTotal,
+          discountApplied: Math.round(discount),
+          grandTotal: Math.round(grandTotal),
           paymentStatus: 'pending'
         })
       });
 
-      // 3. Trigger WhatsApp text forwarder
-      const message = `*New Order - ${CONFIG.brandName}*%0A%0A*Customer:* ${customerName}%0A*Address:* ${customerAddress}%0A%0A*Items:*%0A${orderLines.join('%0A')}%0A%0A*Grand Total: ₹${grandTotal}*`;
+      const discountMessageText = discount > 0 ? `%0A*Discount (5%25 Off):* -₹${Math.round(discount)}` : '';
+      const message = `*New Order - ${CONFIG.brandName}*%0A%0A*Customer:* ${customerName}%0A*Address:* ${customerAddress}%0A%0A*Items:*%0A${orderLines.join('%0A')}%0A%0A*Subtotal:* ₹${cartTotal}${discountMessageText}%0A*Grand Total: ₹${Math.round(grandTotal)}*`;
       window.open(`https://wa.me/${atob(CONFIG.hiddenPhone)}?text=${message}`, '_blank');
 
       setInventory(updatedInventory);
@@ -168,12 +188,6 @@ export default function App() {
     const matchesSearch = (product.name || '').toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCategory && matchesSearch;
   });
-
-  const cartTotal = cart.reduce((total, item) => {
-    const product = inventory.find(p => p.id === item.productId);
-    const variant = product?.variants?.find(v => v.variantId === item.variantId);
-    return total + (variant ? variant.price * item.qty : 0);
-  }, 0);
   
   const totalCartItemsCount = cart.reduce((total, item) => total + item.qty, 0);
 
@@ -228,7 +242,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* Trust Badges - Placed cleanly outside yet closely connected */}
+            {/* Trust Badges */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8">
               <div className="flex items-center gap-3 bg-white border border-orange-100/60 p-3.5 rounded-2xl shadow-[0_2px_8px_rgba(234,88,12,0.02)] hover:border-orange-200 transition-all duration-200 group">
                 <div className="w-8 h-8 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
@@ -286,15 +300,30 @@ export default function App() {
             </div>
           </main>
 
+          {/* Desktop Sidebar Basket */}
           <aside className="hidden lg:block lg:w-[400px] flex-shrink-0">
             <div className="bg-white border border-orange-100 rounded-2xl shadow-xs sticky top-24 overflow-hidden flex flex-col h-[calc(100vh-8rem)]">
               <div className="p-5 border-b border-gray-100 bg-[#fffdf8] shrink-0">
                 <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2"><svg className="w-5 h-5 text-[#b45309]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg>Your Basket</h2>
               </div>
-              <CartContent cart={cart} inventory={inventory} cartTotal={cartTotal} updateCart={updateCart} removeFromCart={removeFromCart} customerName={customerName} setCustomerName={setCustomerName} customerAddress={customerAddress} setCustomerAddress={setCustomerAddress} handleCheckout={handleCheckout} isCheckingOut={isCheckingOut} />
+              <CartContent 
+                cart={cart} 
+                inventory={inventory} 
+                cartTotal={cartTotal} 
+                updateCart={updateCart} 
+                removeFromCart={removeFromCart} 
+                clearCart={clearCart} 
+                customerName={customerName} 
+                setCustomerName={setCustomerName} 
+                customerAddress={customerAddress} 
+                setCustomerAddress={setCustomerAddress} 
+                handleCheckout={handleCheckout} 
+                isCheckingOut={isCheckingOut} 
+              />
             </div>
           </aside>
 
+          {/* Sticky Bottom Bar for Mobile Layouts */}
           {cart.length > 0 && (
             <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-orange-100 p-4 flex items-center justify-between z-40 lg:hidden shadow-[0_-4px_12px_rgba(0,0,0,0.05)]">
               <div>
@@ -307,6 +336,7 @@ export default function App() {
             </div>
           )}
 
+          {/* Full Screen Drawer Overlay for Mobile Layouts */}
           {isMobileCartOpen && (
             <div className="fixed inset-0 bg-black/60 z-50 flex flex-col justify-end lg:hidden transition-opacity">
               <div className="bg-white rounded-t-2xl h-[85vh] flex flex-col overflow-hidden shadow-2xl animate-slide-up">
@@ -314,7 +344,20 @@ export default function App() {
                   <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2"><svg className="w-5 h-5 text-[#b45309]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg>Your Basket ({totalCartItemsCount})</h2>
                   <button onClick={() => setIsMobileCartOpen(false)} className="p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 cursor-pointer"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
                 </div>
-                <CartContent cart={cart} inventory={inventory} cartTotal={cartTotal} updateCart={updateCart} removeFromCart={removeFromCart} customerName={customerName} setCustomerName={setCustomerName} customerAddress={customerAddress} setCustomerAddress={setCustomerAddress} handleCheckout={handleCheckout} isCheckingOut={isCheckingOut} />
+                <CartContent 
+                  cart={cart} 
+                  inventory={inventory} 
+                  cartTotal={cartTotal} 
+                  updateCart={updateCart} 
+                  removeFromCart={removeFromCart} 
+                  clearCart={clearCart} 
+                  customerName={customerName} 
+                  setCustomerName={setCustomerName} 
+                  customerAddress={customerAddress} 
+                  setCustomerAddress={setCustomerAddress} 
+                  handleCheckout={handleCheckout} 
+                  isCheckingOut={isCheckingOut} 
+                />
               </div>
             </div>
           )}

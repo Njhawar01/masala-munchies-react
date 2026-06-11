@@ -18,6 +18,20 @@ export default function AdminDashboard({ inventory, setInventory }) {
   const [orders, setOrders] = useState([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
 
+  // Auto-Scroll & Focus management when expanding an existing or new product card
+  useEffect(() => {
+    if (expandedProductId) {
+      setTimeout(() => {
+        const productCardElement = document.getElementById(`product-card-${expandedProductId}`);
+        if (productCardElement) {
+          productCardElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          const nameInput = productCardElement.querySelector('input[data-field="product-name"]');
+          if (nameInput) nameInput.focus();
+        }
+      }, 80);
+    }
+  }, [expandedProductId]);
+
   useEffect(() => {
     if (inventory.length > 0) {
       setLocalInventory(JSON.parse(JSON.stringify(inventory)));
@@ -113,10 +127,11 @@ export default function AdminDashboard({ inventory, setInventory }) {
     const newId = Date.now().toString();
     const newProduct = {
       id: newId,
-      name: "New Product Name",
+      name: "",
       category: "Snacks", 
-      containsOnionGarlic: false, // <-- Added default state here
-      variants: [{ variantId: newId + 'v', weight: "200g", price: 0, stockLeft: 0, description: "", images: [] }]
+      containsOnionGarlic: false, 
+      isBestseller: false, // Default setup for bestseller flag
+      variants: [{ variantId: newId + 'v', weight: 200, price: 0, stockLeft: 0, description: "", images: [] }]
     };
     setLocalInventory([newProduct, ...localInventory]);
     setExpandedProductId(newId);
@@ -143,55 +158,55 @@ export default function AdminDashboard({ inventory, setInventory }) {
   };
 
   const handleImageUpload = async (e, productId, variantId) => {
-  const files = Array.from(e.target.files || []);
-  if (files.length === 0) return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
 
-  const variantKey = `${productId}_${variantId}`;
-  setUploadingKey(variantKey);
-  setImageError(prev => ({ ...prev, [variantKey]: "" }));
+    const variantKey = `${productId}_${variantId}`;
+    setUploadingKey(variantKey);
+    setImageError(prev => ({ ...prev, [variantKey]: "" }));
 
-  const bucketName = CONFIG.storageBucket || CONFIG.FIREBASE_URL.match(/https:\/\/(.+?)(-default-rtdb)?\.firebaseio\.com/)?.[1] + ".firebasestorage.app";
+    const bucketName = CONFIG.storageBucket || CONFIG.FIREBASE_URL.match(/https:\/\/(.+?)(-default-rtdb)?\.firebaseio\.com/)?.[1] + ".firebasestorage.app";
 
-  try {
-    const uploadPromises = files.map(async (file) => {
-      const storagePath = `products/${productId}/${variantId}_${Date.now()}_${file.name}`;
-      const uploadUrl = `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o?name=${encodeURIComponent(storagePath)}`;
+    try {
+      const uploadPromises = files.map(async (file) => {
+        const storagePath = `products/${productId}/${variantId}_${Date.now()}_${file.name}`;
+        const uploadUrl = `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o?name=${encodeURIComponent(storagePath)}`;
 
-      const response = await fetch(uploadUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': file.type,
-          'Authorization': `Bearer ${idToken}`
-        },
-        body: file
+        const response = await fetch(uploadUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': file.type,
+            'Authorization': `Bearer ${idToken}`
+          },
+          body: file
+        });
+
+        if (!response.ok) throw new Error("Storage transmission failed.");
+
+        const data = await response.json();
+        return `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodeURIComponent(data.name)}?alt=media&token=${data.downloadTokens}`;
       });
 
-      if (!response.ok) throw new Error("Storage transmission failed.");
+      const uploadedUrls = await Promise.all(uploadPromises);
 
-      const data = await response.json();
-      return `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodeURIComponent(data.name)}?alt=media&token=${data.downloadTokens}`;
-    });
+      setLocalInventory(prev => prev.map(p => {
+        if (p.id === productId) {
+          return {
+            ...p,
+            variants: p.variants.map(v => v.variantId === variantId ? { ...v, images: [...(v.images || []), ...uploadedUrls] } : v)
+          };
+        }
+        return p;
+      }));
 
-    const uploadedUrls = await Promise.all(uploadPromises);
-
-    setLocalInventory(prev => prev.map(p => {
-      if (p.id === productId) {
-        return {
-          ...p,
-          variants: p.variants.map(v => v.variantId === variantId ? { ...v, images: [...(v.images || []), ...uploadedUrls] } : v)
-        };
-      }
-      return p;
-    }));
-
-  } catch (error) {
-    console.error(error);
-    setImageError(prev => ({ ...prev, [variantKey]: "One or more uploads failed. Check Firebase Rules." }));
-  } finally {
-    setUploadingKey(null);
-    e.target.value = ""; 
-  }
-};
+    } catch (error) {
+      console.error(error);
+      setImageError(prev => ({ ...prev, [variantKey]: "One or more uploads failed. Check Firebase Rules." }));
+    } finally {
+      setUploadingKey(null);
+      e.target.value = ""; 
+    }
+  };
 
   const handleRemoveImage = (productId, variantId, imgIndex) => {
     setLocalInventory(prev => prev.map(p => {
@@ -213,13 +228,24 @@ export default function AdminDashboard({ inventory, setInventory }) {
   };
 
   const handleAddVariant = (productId) => {
+    const newVariantId = Date.now().toString() + 'v';
     setLocalInventory(prev => prev.map(p => {
       if (p.id === productId) {
         const currentVariants = p.variants || [];
-        return { ...p, variants: [...currentVariants, { variantId: Date.now().toString() + 'v', weight: "New Weight", price: 0, stockLeft: 0, description: "", images: [] }] };
+        return { ...p, variants: [...currentVariants, { variantId: newVariantId, weight: 250, price: 0, stockLeft: 0, description: "", images: [] }] };
       }
       return p;
     }));
+
+    // Instantly scroll directly to target the newly added variant box and focus its weight input
+    setTimeout(() => {
+      const variantCardElement = document.getElementById(`variant-card-${newVariantId}`);
+      if (variantCardElement) {
+        variantCardElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const weightField = variantCardElement.querySelector('input[data-field="variant-weight"]');
+        if (weightField) weightField.focus();
+      }
+    }, 100);
   };
 
   const handleDeleteVariant = (productId, variantId) => {
@@ -276,11 +302,11 @@ export default function AdminDashboard({ inventory, setInventory }) {
               required 
             />
             <button 
-                type="submit" 
-                disabled={isLoggingIn} 
-                className="w-full bg-gray-900 text-white font-bold py-3 rounded-xl hover:bg-gray-800 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                {isLoggingIn ? "Logging in..." : "Login"}
+              type="submit" 
+              disabled={isLoggingIn} 
+              className="w-full bg-gray-900 text-white font-bold py-3 rounded-xl hover:bg-gray-800 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isLoggingIn ? "Logging in..." : "Login"}
             </button>
           </form>
         </div>
@@ -289,7 +315,7 @@ export default function AdminDashboard({ inventory, setInventory }) {
   }
 
   return (
-    <div className="max-w-4xl mx-auto w-full p-4 md:p-8 flex-1">
+    <div className={`max-w-4xl mx-auto w-full p-4 md:p-8 flex-1 ${activeTab === 'inventory' ? 'pb-28' : ''}`}>
       <div className="flex flex-col gap-4 mb-6 border-b border-gray-200 pb-2">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
@@ -386,7 +412,7 @@ export default function AdminDashboard({ inventory, setInventory }) {
             const isExpanded = expandedProductId === product.id;
 
             return (
-              <div key={product.id} className="bg-white border border-gray-200 rounded-xl shadow-xs overflow-hidden transition-all">
+              <div key={product.id} id={`product-card-${product.id}`} className="bg-white border border-gray-200 rounded-xl shadow-xs overflow-hidden transition-all">
                 <div 
                   className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 cursor-pointer border-b border-transparent gap-2 sm:gap-0"
                   onClick={() => setExpandedProductId(isExpanded ? null : product.id)}
@@ -397,7 +423,6 @@ export default function AdminDashboard({ inventory, setInventory }) {
                       {product.category || 'No Category'}
                     </span>
                     
-                    {/* NEW: Dynamic Tag Badge in Collapsed View */}
                     {product.containsOnionGarlic ? (
                       <span className="text-[10px] font-bold uppercase tracking-wider bg-red-50 border border-red-100 text-red-700 px-2.5 py-0.5 rounded-md w-max">
                         Contains Onion & Garlic
@@ -405,6 +430,13 @@ export default function AdminDashboard({ inventory, setInventory }) {
                     ) : (
                       <span className="text-[10px] font-bold uppercase tracking-wider bg-emerald-50 border border-emerald-100 text-emerald-700 px-2.5 py-0.5 rounded-md w-max">
                         No Onion/Garlic
+                      </span>
+                    )}
+
+                    {/* Bestseller Badge in Collapsed View */}
+                    {product.isBestseller && (
+                      <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-50 border border-amber-200 text-amber-700 px-2.5 py-0.5 rounded-md w-max flex items-center gap-1">
+                        ⭐ Bestseller
                       </span>
                     )}
                   </div>
@@ -423,7 +455,14 @@ export default function AdminDashboard({ inventory, setInventory }) {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 pr-8">
                       <div>
                         <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Product Name</label>
-                        <input type="text" value={product.name || ''} onChange={(e) => updateProductField(product.id, 'name', e.target.value)} className="w-full bg-gray-50 border border-gray-200 px-3 py-2 rounded-lg text-sm font-semibold focus:outline-emerald-600" />
+                        <input 
+                          type="text" 
+                          data-field="product-name"
+                          value={product.name || ''} 
+                          placeholder="e.g., Premium Ribbon Pakoda"
+                          onChange={(e) => updateProductField(product.id, 'name', e.target.value)} 
+                          className="w-full bg-gray-50 border border-gray-200 px-3 py-2 rounded-lg text-sm font-semibold focus:outline-emerald-600" 
+                        />
                       </div>
 
                       <div>
@@ -451,24 +490,41 @@ export default function AdminDashboard({ inventory, setInventory }) {
                         </div>
                       </div>
 
-                      {/* NEW: Onion & Garlic Checkbox Editor */}
-                      <div className="md:col-span-2 mt-1 mb-2 bg-red-50/50 border border-red-100 p-3 rounded-lg flex items-center gap-3 w-fit">
-                        <input 
-                          type="checkbox" 
-                          id={`onionGarlicCheck-${product.id}`}
-                          checked={!!product.containsOnionGarlic}
-                          onChange={(e) => updateProductField(product.id, 'containsOnionGarlic', e.target.checked)}
-                          className="w-4 h-4 text-red-600 rounded border-gray-300 focus:ring-red-500 cursor-pointer"
-                        />
-                        <label htmlFor={`onionGarlicCheck-${product.id}`} className="text-sm font-bold text-gray-800 cursor-pointer select-none">
-                          Product Contains <span className="text-red-700">Onion & Garlic</span>
-                        </label>
+                      {/* Flex wrapper for the attribute checkboxes */}
+                      <div className="md:col-span-2 flex flex-wrap gap-3 mt-1 mb-2">
+                        {/* Onion & Garlic Checkbox */}
+                        <div className="bg-red-50/50 border border-red-100 p-3 rounded-lg flex items-center gap-3 w-fit">
+                          <input 
+                            type="checkbox" 
+                            id={`onionGarlicCheck-${product.id}`}
+                            checked={!!product.containsOnionGarlic}
+                            onChange={(e) => updateProductField(product.id, 'containsOnionGarlic', e.target.checked)}
+                            className="w-4 h-4 text-red-600 rounded border-gray-300 focus:ring-red-500 cursor-pointer"
+                          />
+                          <label htmlFor={`onionGarlicCheck-${product.id}`} className="text-sm font-bold text-gray-800 cursor-pointer select-none">
+                            Product Contains <span className="text-red-700">Onion & Garlic</span>
+                          </label>
+                        </div>
+
+                        {/* Bestseller Checkbox */}
+                        <div className="bg-amber-50/50 border border-amber-100 p-3 rounded-lg flex items-center gap-3 w-fit">
+                          <input 
+                            type="checkbox" 
+                            id={`bestsellerCheck-${product.id}`}
+                            checked={!!product.isBestseller}
+                            onChange={(e) => updateProductField(product.id, 'isBestseller', e.target.checked)}
+                            className="w-4 h-4 text-amber-600 rounded border-gray-300 focus:ring-amber-500 cursor-pointer"
+                          />
+                          <label htmlFor={`bestsellerCheck-${product.id}`} className="text-sm font-bold text-gray-800 cursor-pointer select-none">
+                            Mark as <span className="text-amber-700 font-extrabold">⭐ Bestseller Listing</span>
+                          </label>
+                        </div>
                       </div>
                     </div>
 
                     <div>
                       <div className="flex justify-between items-center mb-3">
-                        <label className="block text-xs font-bold text-gray-800">Variants (Weights, Images, Pricing & Info)</label>
+                        <label className="block text-xs font-bold text-gray-800">Variants (Pricing, Stock & Grams)</label>
                         <button onClick={() => handleAddVariant(product.id)} className="text-xs font-bold text-emerald-600 hover:text-emerald-700 cursor-pointer">+ Add Variant</button>
                       </div>
                       
@@ -476,23 +532,47 @@ export default function AdminDashboard({ inventory, setInventory }) {
                         {(product.variants || []).map(variant => {
                           const variantKey = `${product.id}_${variant.variantId}`;
                           return (
-                            <div key={variant.variantId} className="flex flex-col p-4 bg-gray-50 border border-gray-200 rounded-xl gap-3 relative shadow-sm">
+                            <div key={variant.variantId} id={`variant-card-${variant.variantId}`} className="flex flex-col p-4 bg-gray-50 border border-gray-200 rounded-xl gap-3 relative shadow-sm">
                               <button onClick={() => handleDeleteVariant(product.id, variant.variantId)} className="absolute top-2 right-2 text-red-400 hover:text-red-600 p-1 cursor-pointer" title="Delete Variant">
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                               </button>
                               
                               <div className="flex flex-col sm:flex-row gap-3 pr-8">
+                                {/* Weight Input Suffix Unit Wrapper */}
                                 <div className="flex-1">
-                                  <label className="block text-[9px] font-bold text-gray-400 uppercase mb-1">Weight Label</label>
-                                  <input type="text" value={variant.weight || ''} onChange={(e) => updateVariantField(product.id, variant.variantId, 'weight', e.target.value)} className="w-full bg-white border border-gray-200 px-3 py-2 rounded-lg text-sm font-semibold focus:outline-emerald-600" />
+                                  <label className="block text-[9px] font-bold text-gray-400 uppercase mb-1">Weight (in grams)</label>
+                                  <div className="relative flex items-center">
+                                    <input 
+                                      type="number" 
+                                      data-field="variant-weight"
+                                      value={variant.weight === 0 || !variant.weight ? '' : parseInt(variant.weight, 10)} 
+                                      placeholder="250" 
+                                      onChange={(e) => updateVariantField(product.id, variant.variantId, 'weight', e.target.value === '' ? 0 : parseInt(e.target.value, 10))} 
+                                      className="w-full bg-white border border-gray-200 pl-3 pr-7 py-2 rounded-lg text-sm font-semibold focus:outline-emerald-600 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
+                                    />
+                                    <span className="absolute right-3 text-xs font-bold text-gray-400 pointer-events-none">g</span>
+                                  </div>
                                 </div>
+
                                 <div className="flex-1">
                                   <label className="block text-[9px] font-bold text-gray-400 uppercase mb-1">Price (₹)</label>
-                                  <input type="number" value={variant.price || 0} onChange={(e) => updateVariantField(product.id, variant.variantId, 'price', parseInt(e.target.value) || 0)} className="w-full bg-white border border-gray-200 px-3 py-2 rounded-lg text-sm font-semibold focus:outline-emerald-600" />
+                                  <input 
+                                    type="number" 
+                                    placeholder="0"
+                                    value={variant.price === 0 ? '' : variant.price} 
+                                    onChange={(e) => updateVariantField(product.id, variant.variantId, 'price', e.target.value === '' ? 0 : parseInt(e.target.value, 10))} 
+                                    className="w-full bg-white border border-gray-200 px-3 py-2 rounded-lg text-sm font-semibold focus:outline-emerald-600" 
+                                  />
                                 </div>
                                 <div className="flex-1">
                                   <label className="block text-[9px] font-bold text-gray-400 uppercase mb-1">Stock Left</label>
-                                  <input type="number" value={variant.stockLeft || 0} onChange={(e) => updateVariantField(product.id, variant.variantId, 'stockLeft', parseInt(e.target.value) || 0)} className={`w-full bg-white border px-3 py-2 rounded-lg text-sm font-bold focus:outline-emerald-600 ${variant.stockLeft === 0 ? 'text-red-600 border-red-200 bg-red-50' : 'text-gray-800 border-gray-200'}`} />
+                                  <input 
+                                    type="number" 
+                                    placeholder="0"
+                                    value={variant.stockLeft === 0 ? '' : variant.stockLeft} 
+                                    onChange={(e) => updateVariantField(product.id, variant.variantId, 'stockLeft', e.target.value === '' ? 0 : parseInt(e.target.value, 10))} 
+                                    className={`w-full bg-white border px-3 py-2 rounded-lg text-sm font-bold focus:outline-emerald-600 ${variant.stockLeft === 0 ? 'text-red-600 border-red-200 bg-red-50' : 'text-gray-800 border-gray-200'}`} 
+                                  />
                                 </div>
                               </div>
 
