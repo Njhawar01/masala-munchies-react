@@ -24,7 +24,7 @@ const ImageWithLoader = ({ src, alt, onClick }) => {
   );
 };
 
-export default function ProductImages({ images, productName }) {
+export default function ProductImages({ images, productName, isOutOfStock }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isZoomed, setIsZoomed] = useState(false);
@@ -40,7 +40,7 @@ export default function ProductImages({ images, productName }) {
 
   if (!images || images.length === 0) return null;
 
-  // FIXED Point 3: Lock background scrolling when modal is open
+  // Lock background scrolling when modal is open
   useEffect(() => {
     if (isModalOpen) {
       document.body.style.overflow = 'hidden';
@@ -101,7 +101,7 @@ export default function ProductImages({ images, productName }) {
     }
   };
 
-  // FIXED Point 2: Mobile Touch Handlers for the Modal
+  // Mobile Touch Handlers for the Modal
   const onTouchStart = (e) => {
     setTouchEnd(null);
     setTouchStart(e.targetTouches[0].clientX);
@@ -146,10 +146,11 @@ export default function ProductImages({ images, productName }) {
   return (
     <div className="relative w-full h-48 md:h-52 group/gallery">
       
+      {/* Grayscale filter is localized strictly to the shop grid preview layout */}
       <div 
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className="flex overflow-x-auto snap-x snap-mandatory scrollbar-none w-full h-full rounded-xl"
+        className={`flex overflow-x-auto snap-x snap-mandatory scrollbar-none w-full h-full rounded-xl ${isOutOfStock ? 'grayscale opacity-50' : ''}`}
       >
         {images.map((img, index) => (
           <div key={index} className="snap-center shrink-0 w-full h-full">
@@ -210,7 +211,6 @@ export default function ProductImages({ images, productName }) {
 
           {images.length > 1 && !isZoomed && (
             <>
-              {/* Arrow buttons are now hidden on smaller touch screens to encourage natural swiping, but visible on tablets/desktops */}
               <button 
                 onClick={(e) => { e.stopPropagation(); navigateToImage(currentIndex === 0 ? images.length - 1 : currentIndex - 1); }}
                 className="hidden md:block absolute left-4 text-white hover:bg-white/10 p-3 rounded-full cursor-pointer transition-all z-10"

@@ -35,7 +35,7 @@ export default function ProductCard({ product, cart, updateCart }) {
     <div className="bg-[#fffdf8] rounded-2xl border border-orange-50 overflow-hidden hover:shadow-md transition-all flex flex-col h-full relative">
       
       {/* Image Section & Bestseller Badge */}
-      <div className={`bg-white border-b border-orange-50 relative group ${isOutOfStock ? 'grayscale opacity-50' : ''}`}>
+      <div className="bg-white border-b border-orange-50 relative group">
         
         {/* Dynamic DB Bestseller Tag */}
         {product.isBestseller && (
@@ -45,7 +45,7 @@ export default function ProductCard({ product, cart, updateCart }) {
         )}
 
         {productImages.length > 0 ? (
-          <ProductImages images={productImages} productName={product.name} />
+          <ProductImages images={productImages} productName={product.name} isOutOfStock={isOutOfStock} />
         ) : (
           <div className="h-48 flex items-center justify-center text-orange-200 text-xs">
             No Images for this Variant
@@ -53,14 +53,14 @@ export default function ProductCard({ product, cart, updateCart }) {
         )}
       </div>
 
-      <div className="p-5 flex flex-col flex-grow">
+      <div className="p-4 sm:p-5 flex flex-col flex-grow">
         <div className="flex items-start justify-between gap-2 mb-1">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 min-w-0">
             {/* Vegetarian Green Dot Indicator */}
             <div className="flex items-center justify-center w-3.5 h-3.5 border-[1.5px] border-emerald-700 rounded-[2px] shrink-0 bg-white">
               <div className="w-1.5 h-1.5 bg-emerald-700 rounded-full"></div>
             </div>
-            <h3 className="font-bold text-gray-900 text-base leading-tight">{product.name}</h3>
+            <h3 className="font-bold text-gray-900 text-sm sm:text-base leading-tight line-clamp-2">{product.name}</h3>
           </div>
           
           {!isOutOfStock && activeVariant.stockLeft <= 5 && (
@@ -71,7 +71,7 @@ export default function ProductCard({ product, cart, updateCart }) {
         </div>
 
         {/* Onion/Garlic Tags */}
-        <div className="flex gap-2 mb-2">
+        <div className="flex flex-wrap gap-1.5 mb-2">
           {product.containsOnionGarlic && (
             <span className="text-[9px] font-extrabold text-purple-700 bg-purple-50 border border-purple-200 px-1.5 py-0.5 rounded-md tracking-wide shrink-0">
               CONTAINS ONION/GARLIC
@@ -99,24 +99,45 @@ export default function ProductCard({ product, cart, updateCart }) {
            <div className="mb-3 text-xs text-transparent select-none">Spacer</div>
         )}
 
-        <div className="mt-auto">
-          <div className="flex justify-between items-center mb-1 gap-2">
+        <div className="mt-auto pt-2">
+          {/* 1. VARIANT SELECTOR: Spans full width with custom arrow indicator to remove horizontal clutter */}
+          <div className="mb-2.5 relative">
             <select 
               value={activeVariantId}
               onChange={(e) => setActiveVariantId(e.target.value)}
-              className="bg-gray-50 border border-gray-200 text-gray-700 text-[11px] rounded-md focus:ring-orange-500 block p-1.5 w-24 cursor-pointer"
+              className="bg-gray-50 border border-gray-200 text-gray-700 text-xs font-medium rounded-xl focus:ring-orange-500 focus:border-orange-500 block p-2 w-full cursor-pointer transition-all appearance-none pr-8 bg-no-repeat"
             >
               {product.variants.map(v => (
-                <option key={v.variantId} value={v.variantId}>{v.weight}</option>
+                <option key={v.variantId} value={v.variantId}>
+                  {v.weight}{String(v.weight).endsWith('g') ? '' : 'g'}
+                </option>
               ))}
             </select>
-            <span className="font-black text-lg text-gray-900">₹{activeVariant.price}</span>
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-400">
+              <svg className="fill-current h-3 w-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/>
+              </svg>
+            </div>
+          </div>
+          
+          {/* 2. PRICING ROW: Left-to-right modern alignment. Sale price is primary focus */}
+          <div className="flex items-baseline gap-2 mb-3 flex-wrap">
+            <span className="font-black text-xl text-gray-900 tracking-tight">₹{activeVariant.price}</span>
+            {activeVariant.mrp && activeVariant.mrp > activeVariant.price ? (
+              <div className="flex items-center gap-1.5">
+                <span className="line-through text-gray-400 text-xs font-medium">₹{activeVariant.mrp}</span>
+                <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded-md uppercase tracking-wide whitespace-nowrap">
+                  {Math.round(((activeVariant.mrp - activeVariant.price) / activeVariant.mrp) * 100)}% OFF
+                </span>
+              </div>
+            ) : null}
           </div>
 
+          {/* 3. BUTTONS: Full-width matching layouts */}
           {isOutOfStock ? (
-            <button disabled className="w-full mt-4 py-2.5 bg-gray-100 text-gray-400 rounded-xl text-sm font-bold cursor-not-allowed">Out of Stock</button>
+            <button disabled className="w-full py-2.5 bg-gray-100 text-gray-400 rounded-xl text-sm font-bold cursor-not-allowed">Out of Stock</button>
           ) : currentCartQty > 0 ? (
-            <div className="flex items-center justify-between mt-4 bg-white rounded-xl border border-emerald-500 p-1">
+            <div className="flex items-center justify-between bg-white rounded-xl border border-emerald-500 p-1">
               <button onClick={() => updateCart(product.id, activeVariantId, -1)} className="w-10 h-8 flex items-center justify-center text-emerald-700 font-bold hover:bg-emerald-50 rounded-lg cursor-pointer">-</button>
               <span className="font-bold text-emerald-800 text-sm">{currentCartQty}</span>
               <button 
@@ -128,7 +149,7 @@ export default function ProductCard({ product, cart, updateCart }) {
               </button>
             </div>
           ) : (
-            <button onClick={() => updateCart(product.id, activeVariantId, 1)} className="w-full mt-4 py-2.5 bg-[#fff8ef] hover:bg-[#ffeedb] text-[#d97706] rounded-xl text-sm font-bold transition-colors border border-orange-100 cursor-pointer">
+            <button onClick={() => updateCart(product.id, activeVariantId, 1)} className="w-full py-2.5 bg-[#fff8ef] hover:bg-[#ffeedb] text-[#d97706] rounded-xl text-sm font-bold transition-colors border border-orange-100 cursor-pointer">
               Add To Basket
             </button>
           )}

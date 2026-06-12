@@ -130,8 +130,8 @@ export default function AdminDashboard({ inventory, setInventory }) {
       name: "",
       category: "Snacks", 
       containsOnionGarlic: false, 
-      isBestseller: false, // Default setup for bestseller flag
-      variants: [{ variantId: newId + 'v', weight: 200, price: 0, stockLeft: 0, description: "", images: [] }]
+      isBestseller: false, 
+      variants: [{ variantId: newId + 'v', weight: 200, mrp: 0, price: 0, stockLeft: 0, description: "", images: [] }]
     };
     setLocalInventory([newProduct, ...localInventory]);
     setExpandedProductId(newId);
@@ -202,7 +202,8 @@ export default function AdminDashboard({ inventory, setInventory }) {
     } catch (error) {
       console.error(error);
       setImageError(prev => ({ ...prev, [variantKey]: "One or more uploads failed. Check Firebase Rules." }));
-    } finally {
+    } 
+    finally {
       setUploadingKey(null);
       e.target.value = ""; 
     }
@@ -232,17 +233,16 @@ export default function AdminDashboard({ inventory, setInventory }) {
     setLocalInventory(prev => prev.map(p => {
       if (p.id === productId) {
         const currentVariants = p.variants || [];
-        return { ...p, variants: [...currentVariants, { variantId: newVariantId, weight: 250, price: 0, stockLeft: 0, description: "", images: [] }] };
+        return { ...p, variants: [...currentVariants, { variantId: newVariantId, weight: 250, mrp: 0, price: 0, stockLeft: 0, description: "", images: [] }] };
       }
       return p;
     }));
 
-    // Instantly scroll directly to target the newly added variant box and focus its weight input
     setTimeout(() => {
       const variantCardElement = document.getElementById(`variant-card-${newVariantId}`);
       if (variantCardElement) {
         variantCardElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        const weightField = variantCardElement.querySelector('input[data-field="variant-weight"]');
+        const weightField = variantCardElement.querySelector('input[data-field=\"variant-weight\"]');
         if (weightField) weightField.focus();
       }
     }, 100);
@@ -274,7 +274,8 @@ export default function AdminDashboard({ inventory, setInventory }) {
     } catch (error) {
       console.error(error);
       alert("Failed to save changes.");
-    } finally {
+    } 
+    finally {
       setIsSaving(false);
     }
   };
@@ -291,7 +292,7 @@ export default function AdminDashboard({ inventory, setInventory }) {
               value={email} 
               onChange={e => setEmail(e.target.value)}
               className="w-full bg-gray-50 border border-gray-200 px-4 py-3 rounded-xl focus:outline-emerald-600" 
-              required 
+              required
             />
             <input 
               type="password" 
@@ -359,6 +360,12 @@ export default function AdminDashboard({ inventory, setInventory }) {
           ) : (
             orders.map(order => {
               const isPaid = order.paymentStatus === 'paid';
+
+              const MINIMUM_ORDER_VALUE = 200;
+              const subtotal = order.cartTotal || (order.items || []).reduce((acc, item) => acc + (item.total || 0), 0);
+              const discount = subtotal >= MINIMUM_ORDER_VALUE ? Math.round(Math.min(subtotal * 0.05, 50)) : 0;
+              const computedGrandTotal = subtotal - discount;
+
               return (
                 <div key={order.orderId} className={`bg-white border ${isPaid ? 'border-emerald-200 shadow-sm' : 'border-orange-200 shadow-md'} rounded-xl p-5 flex flex-col md:flex-row justify-between gap-4 transition-colors`}>
                   <div className="space-y-2 flex-1">
@@ -397,9 +404,22 @@ export default function AdminDashboard({ inventory, setInventory }) {
                       </ul>
                     </div>
                   </div>
-                  <div className="md:text-right flex md:flex-col justify-between items-center md:justify-start md:items-end gap-2 shrink-0 border-t md:border-t-0 border-gray-100 pt-3 md:pt-0">
-                    <span className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">Grand Payment Total</span>
-                    <span className="text-2xl font-black text-emerald-700">₹{order.grandTotal}</span>
+
+                  <div className="md:text-right flex flex-row md:flex-col justify-between items-center md:justify-start md:items-end gap-1.5 shrink-0 border-t md:border-t-0 border-gray-100 pt-3 md:pt-0 min-w-[140px]">
+                    <div className="text-xs text-gray-500 flex justify-between md:block w-full">
+                      <span className="md:inline">Subtotal: </span>
+                      <span className="font-bold text-gray-700">₹{subtotal}</span>
+                    </div>
+                    {discount > 0 && (
+                      <div className="text-xs text-emerald-600 flex justify-between md:block w-full">
+                        <span className="md:inline">5% Discount: </span>
+                        <span className="font-bold">-₹{discount}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between md:flex-col items-center md:items-end w-full border-t border-gray-100 pt-1.5 mt-1">
+                      <span className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider block">Grand Total</span>
+                      <span className="text-2xl font-black text-emerald-700">₹{computedGrandTotal}</span>
+                    </div>
                   </div>
                 </div>
               );
@@ -433,7 +453,6 @@ export default function AdminDashboard({ inventory, setInventory }) {
                       </span>
                     )}
 
-                    {/* Bestseller Badge in Collapsed View */}
                     {product.isBestseller && (
                       <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-50 border border-amber-200 text-amber-700 px-2.5 py-0.5 rounded-md w-max flex items-center gap-1">
                         ⭐ Bestseller
@@ -490,9 +509,7 @@ export default function AdminDashboard({ inventory, setInventory }) {
                         </div>
                       </div>
 
-                      {/* Flex wrapper for the attribute checkboxes */}
                       <div className="md:col-span-2 flex flex-wrap gap-3 mt-1 mb-2">
-                        {/* Onion & Garlic Checkbox */}
                         <div className="bg-red-50/50 border border-red-100 p-3 rounded-lg flex items-center gap-3 w-fit">
                           <input 
                             type="checkbox" 
@@ -506,7 +523,6 @@ export default function AdminDashboard({ inventory, setInventory }) {
                           </label>
                         </div>
 
-                        {/* Bestseller Checkbox */}
                         <div className="bg-amber-50/50 border border-amber-100 p-3 rounded-lg flex items-center gap-3 w-fit">
                           <input 
                             type="checkbox" 
@@ -537,10 +553,10 @@ export default function AdminDashboard({ inventory, setInventory }) {
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                               </button>
                               
-                              <div className="flex flex-col sm:flex-row gap-3 pr-8">
-                                {/* Weight Input Suffix Unit Wrapper */}
-                                <div className="flex-1">
-                                  <label className="block text-[9px] font-bold text-gray-400 uppercase mb-1">Weight (in grams)</label>
+                              {/* 4 Column Row Layout to support explicit MRP alongside Selling Price */}
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pr-8">
+                                <div>
+                                  <label className="block text-[9px] font-bold text-gray-400 uppercase mb-1">Weight (Grams)</label>
                                   <div className="relative flex items-center">
                                     <input 
                                       type="number" 
@@ -554,8 +570,19 @@ export default function AdminDashboard({ inventory, setInventory }) {
                                   </div>
                                 </div>
 
-                                <div className="flex-1">
-                                  <label className="block text-[9px] font-bold text-gray-400 uppercase mb-1">Price (₹)</label>
+                                <div>
+                                  <label className="block text-[9px] font-bold text-gray-400 uppercase mb-1">MRP (Original ₹)</label>
+                                  <input 
+                                    type="number" 
+                                    placeholder="0"
+                                    value={variant.mrp === 0 || !variant.mrp ? '' : variant.mrp} 
+                                    onChange={(e) => updateVariantField(product.id, variant.variantId, 'mrp', e.target.value === '' ? 0 : parseInt(e.target.value, 10))} 
+                                    className="w-full bg-white border border-gray-200 px-3 py-2 rounded-lg text-sm font-semibold focus:outline-emerald-600" 
+                                  />
+                                </div>
+
+                                <div>
+                                  <label className="block text-[9px] font-bold text-gray-400 uppercase mb-1">Sale Price (₹)</label>
                                   <input 
                                     type="number" 
                                     placeholder="0"
@@ -564,7 +591,8 @@ export default function AdminDashboard({ inventory, setInventory }) {
                                     className="w-full bg-white border border-gray-200 px-3 py-2 rounded-lg text-sm font-semibold focus:outline-emerald-600" 
                                   />
                                 </div>
-                                <div className="flex-1">
+
+                                <div>
                                   <label className="block text-[9px] font-bold text-gray-400 uppercase mb-1">Stock Left</label>
                                   <input 
                                     type="number" 
