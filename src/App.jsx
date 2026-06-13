@@ -106,7 +106,6 @@ export default function App() {
       return;
     }
 
-    // Code-level enforcement for the ₹200 minimum threshold
     if (cartTotal < 200) {
       alert("Minimum order value must be ₹200 to place an order.");
       return;
