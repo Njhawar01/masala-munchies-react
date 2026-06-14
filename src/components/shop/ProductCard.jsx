@@ -60,9 +60,17 @@ export default function ProductCard({ product, cart, updateCart }) {
             <div className="flex items-center justify-center w-3.5 h-3.5 border-[1.5px] border-emerald-700 rounded-[2px] shrink-0 bg-white select-none">
               <div className="w-1.5 h-1.5 bg-emerald-700 rounded-full"></div>
             </div>
-            <h3 className="font-bold text-gray-900 text-sm sm:text-base leading-tight line-clamp-2" title={product.name}>{product.name}</h3>
+            
+            {/* Product Name Text with Hover Tooltip */}
+            <h3 
+              className="font-bold text-gray-900 text-sm sm:text-base leading-tight line-clamp-2"
+              title={product.name}
+            >
+              {product.name}
+            </h3>
           </div>
           
+          {/* Dynamic Stock Warning Badge */}
           {!isOutOfStock && activeVariant.stockLeft <= 5 && (
             <span className="text-[9px] font-extrabold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded-md tracking-wide uppercase animate-pulse shrink-0 whitespace-nowrap mt-0.5">
               ONLY {activeVariant.stockLeft} LEFT
@@ -70,8 +78,9 @@ export default function ProductCard({ product, cart, updateCart }) {
           )}
         </div>
 
-        {/* 3. SPECIFIC VARIANT SELECTION: Styled into a clean, compact inline pill */}
-        <div className="mb-2.5 flex flex-wrap">
+        {/* 3 & 4. COMBINED SPECIFIC VARIANT SELECTION & ONION/GARLIC BADGES */}
+        <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2 w-full">
+          {/* Dropdown Pill Layer (Sits on Left) */}
           <div className="inline-flex items-center relative bg-orange-50/80 hover:bg-orange-100/80 border border-orange-100 rounded-full px-2.5 py-1 transition-all shadow-xs">
             <select 
               value={activeVariantId}
@@ -90,21 +99,19 @@ export default function ProductCard({ product, cart, updateCart }) {
               </svg>
             </div>
           </div>
-        </div>
 
-        {/* 4. DESCRIPTION / METADATA LAYER */}
-        {/* Onion/Garlic Custom Badges */}
-        <div className="flex flex-wrap gap-1.5 mb-2.5">
-          {product.containsOnionGarlic && (
-            <span className="text-[9px] font-extrabold text-purple-700 bg-purple-50 border border-purple-200 px-1.5 py-0.5 rounded-md tracking-wide shrink-0">
-              CONTAINS ONION/GARLIC
-            </span>
-          )}
-          {product.noOnionGarlic && (
-            <span className="text-[9px] font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md tracking-wide shrink-0">
-              NO ONION/GARLIC
-            </span>
-          )}
+          {/* Onion/Garlic Badges Layer (Docks safely on the right) */}
+          <div className="flex flex-wrap gap-1.5">
+            {product.containsOnionGarlic ? (
+              <span className="text-[9px] font-extrabold text-purple-700 bg-purple-50 border border-purple-200 px-1.5 py-0.5 rounded-md tracking-wide shrink-0">
+                ONION & GARLIC
+              </span>
+            ) : (
+              <span className="text-[9px] font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-md tracking-wide shrink-0">
+                NO ONION & GARLIC
+              </span>
+            )}
+          </div>
         </div>
         
         {/* Dynamic Variable Description Segment */}
@@ -123,7 +130,7 @@ export default function ProductCard({ product, cart, updateCart }) {
            <div className="mb-4 text-xs text-transparent select-none">Spacer</div>
         )}
 
-        {/* 5. ACTION BASE: Stacked layout on mobile to fully accommodate "Add To Basket" text without squeezing pricing */}
+        {/* 5. ACTION BASE */}
         <div className="mt-auto pt-3 border-t border-orange-100/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           
           {/* Pricing Frame */}
@@ -147,7 +154,7 @@ export default function ProductCard({ product, cart, updateCart }) {
             )}
           </div>
 
-          {/* Checkout Action Component (Spans cleanly on mobile, docks perfectly on desktop) */}
+          {/* Checkout Action Component */}
           <div className="w-full sm:w-32 shrink-0">
             {isOutOfStock ? (
               <button disabled className="w-full py-2.5 bg-gray-100 text-gray-400 rounded-xl text-xs sm:text-sm font-bold cursor-not-allowed border border-gray-200">

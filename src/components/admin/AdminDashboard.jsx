@@ -449,7 +449,7 @@ export default function AdminDashboard({ inventory, setInventory }) {
                       </span>
                     ) : (
                       <span className="text-[10px] font-bold uppercase tracking-wider bg-emerald-50 border border-emerald-100 text-emerald-700 px-2.5 py-0.5 rounded-md w-max">
-                        No Onion/Garlic
+                        No Onion & Garlic
                       </span>
                     )}
 
