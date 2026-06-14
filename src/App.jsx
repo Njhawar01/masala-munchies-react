@@ -58,7 +58,7 @@ export default function App() {
 
   const updateCart = (productId, variantId, delta) => {
     const product = inventory.find(p => p.id === productId);
-    const variant = product.variants?.find(v => v.variantId === variantId);
+    const variant = product?.variants?.find(v => v.variantId === variantId);
     if (!variant) return;
     
     setCart(prevCart => {
@@ -106,12 +106,6 @@ export default function App() {
       return;
     }
 
-    // Code-level enforcement for the ₹200 minimum threshold
-    if (cartTotal < 200) {
-      alert("Minimum order value must be ₹200 to place an order.");
-      return;
-    }
-
     setIsCheckingOut(true);
     let updatedInventory = JSON.parse(JSON.stringify(inventory)); 
     let orderLines = [];
@@ -139,9 +133,11 @@ export default function App() {
       });
     });
 
-    // Discount calculations: Only apply 5% off (capped at ₹50) if cartTotal >= 200
+    // Issue 3: Unified delivery fee processing algorithms synchronized cleanly
     const discount = cartTotal >= 200 ? Math.round(Math.min(cartTotal * 0.05, 50)) : 0;
-    const grandTotal = cartTotal - discount;
+    const totalBeforeDelivery = cartTotal - discount;
+    const deliveryFee = totalBeforeDelivery < 200 ? 50 : 0;
+    const finalGrandTotal = totalBeforeDelivery + deliveryFee;
 
     try {
       await fetch(`${CONFIG.FIREBASE_URL}/inventory.json`, {
@@ -160,13 +156,15 @@ export default function App() {
           items: orderItemsForDb,
           subtotal: cartTotal,
           discountApplied: Math.round(discount),
-          grandTotal: Math.round(grandTotal),
+          deliveryFee: deliveryFee,
+          grandTotal: Math.round(finalGrandTotal),
           paymentStatus: 'pending'
         })
       });
 
       const discountMessageText = discount > 0 ? `%0A*Discount (5%25 Off):* -₹${Math.round(discount)}` : '';
-      const message = `*New Order - ${CONFIG.brandName}*%0A%0A*Customer:* ${customerName}%0A*Address:* ${customerAddress}%0A%0A*Items:*%0A${orderLines.join('%0A')}%0A%0A*Subtotal:* ₹${cartTotal}${discountMessageText}%0A*Grand Total: ₹${Math.round(grandTotal)}*`;
+      const deliveryMessageText = `%0A*Delivery Charges:* ${deliveryFee > 0 ? `₹${deliveryFee}` : 'FREE'}`;
+      const message = `*New Order - ${CONFIG.brandName}*%0A%0A*Customer:* ${customerName}%0A*Address:* ${customerAddress}%0A%0A*Items:*%0A${orderLines.join('%0A')}%0A%0A*Subtotal:* ₹${cartTotal}${discountMessageText}${deliveryMessageText}%0A*Grand Total: ₹${Math.round(finalGrandTotal)}*`;
       window.open(`https://wa.me/${atob(CONFIG.hiddenPhone)}?text=${message}`, '_blank');
 
       setInventory(updatedInventory);
@@ -229,7 +227,6 @@ export default function App() {
         <div className="flex-1 max-w-7xl mx-auto w-full flex flex-col lg:flex-row gap-8 p-4 md:p-8">
           <main className="flex-1 overflow-hidden">
             
-            {/* Premium Refined Orange Hero Banner */}
             <div className="bg-gradient-to-br from-orange-600 via-orange-500 to-amber-600 rounded-3xl p-8 md:p-14 text-white shadow-xs mb-4 relative overflow-hidden border border-white/10">
               <div className="absolute -right-20 -top-20 w-96 h-96 bg-white/10 rounded-full blur-3xl pointer-events-none"></div>
               <div className="absolute -left-20 -bottom-20 w-96 h-96 bg-amber-400/20 rounded-full blur-3xl pointer-events-none"></div>
@@ -247,7 +244,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Trust Badges */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8">
               <div className="flex items-center gap-3 bg-white border border-orange-100/60 p-3.5 rounded-2xl shadow-[0_2px_8px_rgba(234,88,12,0.02)] hover:border-orange-200 transition-all duration-200 group">
                 <div className="w-8 h-8 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
@@ -305,7 +301,6 @@ export default function App() {
             </div>
           </main>
 
-          {/* Desktop Sidebar Basket */}
           <aside className="hidden lg:block lg:w-[400px] flex-shrink-0">
             <div className="bg-white border border-orange-100 rounded-2xl shadow-xs sticky top-24 overflow-hidden flex flex-col h-[calc(100vh-8rem)]">
               <div className="p-5 border-b border-gray-100 bg-[#fffdf8] shrink-0">
@@ -328,7 +323,6 @@ export default function App() {
             </div>
           </aside>
 
-          {/* Sticky Bottom Bar for Mobile Layouts */}
           {cart.length > 0 && (
             <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-orange-100 p-4 flex items-center justify-between z-40 lg:hidden shadow-[0_-4px_12px_rgba(0,0,0,0.05)]">
               <div>
@@ -341,7 +335,6 @@ export default function App() {
             </div>
           )}
 
-          {/* Full Screen Drawer Overlay for Mobile Layouts */}
           {isMobileCartOpen && (
             <div className="fixed inset-0 bg-black/60 z-50 flex flex-col justify-end lg:hidden transition-opacity">
               <div className="bg-white rounded-t-2xl h-[85vh] flex flex-col overflow-hidden shadow-2xl animate-slide-up">

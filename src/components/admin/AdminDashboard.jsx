@@ -242,7 +242,7 @@ export default function AdminDashboard({ inventory, setInventory }) {
       const variantCardElement = document.getElementById(`variant-card-${newVariantId}`);
       if (variantCardElement) {
         variantCardElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        const weightField = variantCardElement.querySelector('input[data-field=\"variant-weight\"]');
+        const weightField = variantCardElement.querySelector('input[data-field="variant-weight"]');
         if (weightField) weightField.focus();
       }
     }, 100);
@@ -361,10 +361,11 @@ export default function AdminDashboard({ inventory, setInventory }) {
             orders.map(order => {
               const isPaid = order.paymentStatus === 'paid';
 
-              const MINIMUM_ORDER_VALUE = 200;
-              const subtotal = order.cartTotal || (order.items || []).reduce((acc, item) => acc + (item.total || 0), 0);
-              const discount = subtotal >= MINIMUM_ORDER_VALUE ? Math.round(Math.min(subtotal * 0.05, 50)) : 0;
-              const computedGrandTotal = subtotal - discount;
+              const subtotal = order.subtotal || order.cartTotal || (order.items || []).reduce((acc, item) => acc + (item.total || 0), 0);
+              const discount = order.discountApplied !== undefined ? order.discountApplied : (subtotal >= 200 ? Math.round(Math.min(subtotal * 0.05, 50)) : 0);
+              const totalBeforeDelivery = subtotal - discount;
+              const deliveryFee = order.deliveryFee !== undefined ? order.deliveryFee : (totalBeforeDelivery < 200 ? 50 : 0);
+              const computedGrandTotal = order.grandTotal || (totalBeforeDelivery + deliveryFee);
 
               return (
                 <div key={order.orderId} className={`bg-white border ${isPaid ? 'border-emerald-200 shadow-sm' : 'border-orange-200 shadow-md'} rounded-xl p-5 flex flex-col md:flex-row justify-between gap-4 transition-colors`}>
@@ -405,19 +406,26 @@ export default function AdminDashboard({ inventory, setInventory }) {
                     </div>
                   </div>
 
-                  <div className="md:text-right flex flex-row md:flex-col justify-between items-center md:justify-start md:items-end gap-1.5 shrink-0 border-t md:border-t-0 border-gray-100 pt-3 md:pt-0 min-w-[140px]">
-                    <div className="text-xs text-gray-500 flex justify-between md:block w-full">
-                      <span className="md:inline">Subtotal: </span>
+                  {/* Fix for Issue 1: Stacked cleanly with full key-value distribution to prevent squeezed text lines on mobile viewports */}
+                  <div className="flex flex-col gap-1.5 shrink-0 border-t md:border-t-0 border-gray-100 pt-3 md:pt-0 min-w-[150px] w-full md:w-auto text-xs">
+                    <div className="flex justify-between items-center w-full">
+                      <span className="text-gray-500">Subtotal:</span>
                       <span className="font-bold text-gray-700">₹{subtotal}</span>
                     </div>
                     {discount > 0 && (
-                      <div className="text-xs text-emerald-600 flex justify-between md:block w-full">
-                        <span className="md:inline">5% Discount: </span>
+                      <div className="flex justify-between items-center w-full text-red-600">
+                        <span>5% Discount:</span>
                         <span className="font-bold">-₹{discount}</span>
                       </div>
                     )}
-                    <div className="flex justify-between md:flex-col items-center md:items-end w-full border-t border-gray-100 pt-1.5 mt-1">
-                      <span className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider block">Grand Total</span>
+                    {deliveryFee > 0 && (
+                      <div className="flex justify-between items-center w-full text-gray-500">
+                        <span>Delivery Fee:</span>
+                        <span className="font-bold text-gray-700">₹{deliveryFee}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between items-center w-full border-t border-gray-100 pt-1.5 mt-1">
+                      <span className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">Grand Total</span>
                       <span className="text-2xl font-black text-emerald-700">₹{computedGrandTotal}</span>
                     </div>
                   </div>
@@ -553,7 +561,6 @@ export default function AdminDashboard({ inventory, setInventory }) {
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                               </button>
                               
-                              {/* 4 Column Row Layout to support explicit MRP alongside Selling Price */}
                               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pr-8">
                                 <div>
                                   <label className="block text-[9px] font-bold text-gray-400 uppercase mb-1">Weight (Grams)</label>
