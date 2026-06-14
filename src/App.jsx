@@ -187,6 +187,11 @@ export default function App() {
     const matchesCategory = category === 'All' || product.category === category;
     const matchesSearch = (product.name || '').toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCategory && matchesSearch;
+  })
+  .sort((a, b) => {
+    const aAllOut = (a.variants || []).every(v => v.stockLeft === 0) ? 1 : 0;
+    const bAllOut = (b.variants || []).every(v => v.stockLeft === 0) ? 1 : 0;
+    return aAllOut - bAllOut;
   });
   
   const totalCartItemsCount = cart.reduce((total, item) => total + item.qty, 0);

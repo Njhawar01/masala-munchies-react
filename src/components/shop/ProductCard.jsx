@@ -53,24 +53,24 @@ export default function ProductCard({ product, cart, updateCart }) {
       {/* CARD BODY WORKSPACE */}
       <div className="p-4 sm:p-5 flex flex-col flex-grow">
         
-        {/* 2. PRODUCT NAME & DYNAMIC STOCK WARNING */}
-        <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-1 mb-1.5 w-full">
-          <div className="flex items-center gap-2 min-w-0 max-w-full">
-            {/* Vegetarian Green Dot Indicator */}
-            <div className="flex items-center justify-center w-3.5 h-3.5 border-[1.5px] border-emerald-700 rounded-[2px] shrink-0 bg-white select-none">
+        {/* 2. PRODUCT NAME & DYNAMIC STOCK WARNING (Optimized for single line alignment) */}
+        <div className="flex items-start justify-between gap-2 mb-1.5 w-full">
+          <div className="flex items-start gap-2 flex-1 min-w-0">
+            {/* Vegetarian Green Dot Indicator (Aligned to top of text line) */}
+            <div className="flex items-center justify-center w-3.5 h-3.5 border-[1.5px] border-emerald-700 rounded-[2px] shrink-0 bg-white select-none mt-0.5">
               <div className="w-1.5 h-1.5 bg-emerald-700 rounded-full"></div>
             </div>
             
-            {/* Product Name Text with Hover Tooltip */}
+            {/* Product Name Text with Clean E-commerce Sizing */}
             <h3 
-              className="font-bold text-gray-900 text-sm sm:text-base leading-tight line-clamp-2"
+              className="font-bold text-gray-900 text-xs sm:text-sm leading-tight line-clamp-2 break-words"
               title={product.name}
             >
               {product.name}
             </h3>
           </div>
           
-          {/* Dynamic Stock Warning Badge */}
+          {/* Dynamic Stock Warning Badge (Docks perfectly to the right side of line 1 or 2) */}
           {!isOutOfStock && activeVariant.stockLeft <= 5 && (
             <span className="text-[9px] font-extrabold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded-md tracking-wide uppercase animate-pulse shrink-0 whitespace-nowrap mt-0.5">
               ONLY {activeVariant.stockLeft} LEFT
@@ -80,7 +80,7 @@ export default function ProductCard({ product, cart, updateCart }) {
 
         {/* 3 & 4. COMBINED SPECIFIC VARIANT SELECTION & ONION/GARLIC BADGES */}
         <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2 w-full">
-          {/* Dropdown Pill Layer (Sits on Left) */}
+          {/* Dropdown Pill Layer */}
           <div className="inline-flex items-center relative bg-orange-50/80 hover:bg-orange-100/80 border border-orange-100 rounded-full px-2.5 py-1 transition-all shadow-xs">
             <select 
               value={activeVariantId}
@@ -100,7 +100,7 @@ export default function ProductCard({ product, cart, updateCart }) {
             </div>
           </div>
 
-          {/* Onion/Garlic Badges Layer (Docks safely on the right) */}
+          {/* Onion/Garlic Badges Layer */}
           <div className="flex flex-wrap gap-1.5">
             {product.containsOnionGarlic ? (
               <span className="text-[9px] font-extrabold text-purple-700 bg-purple-50 border border-purple-200 px-1.5 py-0.5 rounded-md tracking-wide shrink-0">
