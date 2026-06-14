@@ -54,17 +54,17 @@ export default function ProductCard({ product, cart, updateCart }) {
       <div className="p-4 sm:p-5 flex flex-col flex-grow">
         
         {/* 2. PRODUCT NAME & DYNAMIC STOCK WARNING */}
-        <div className="flex items-start justify-between gap-2 mb-1.5">
-          <div className="flex items-center gap-2 min-w-0">
+        <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-1 mb-1.5 w-full">
+          <div className="flex items-center gap-2 min-w-0 max-w-full">
             {/* Vegetarian Green Dot Indicator */}
-            <div className="flex items-center justify-center w-3.5 h-3.5 border-[1.5px] border-emerald-700 rounded-[2px] shrink-0 bg-white">
+            <div className="flex items-center justify-center w-3.5 h-3.5 border-[1.5px] border-emerald-700 rounded-[2px] shrink-0 bg-white select-none">
               <div className="w-1.5 h-1.5 bg-emerald-700 rounded-full"></div>
             </div>
-            <h3 className="font-bold text-gray-900 text-sm sm:text-base leading-tight line-clamp-2">{product.name}</h3>
+            <h3 className="font-bold text-gray-900 text-sm sm:text-base leading-tight line-clamp-2" title={product.name}>{product.name}</h3>
           </div>
           
           {!isOutOfStock && activeVariant.stockLeft <= 5 && (
-            <span className="text-[9px] font-extrabold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded-md tracking-wide animate-pulse shrink-0 whitespace-nowrap">
+            <span className="text-[9px] font-extrabold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded-md tracking-wide uppercase animate-pulse shrink-0 whitespace-nowrap mt-0.5">
               ONLY {activeVariant.stockLeft} LEFT
             </span>
           )}
