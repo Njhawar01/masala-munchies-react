@@ -4,9 +4,7 @@ import ProductCard from './components/shop/ProductCard';
 import CartContent from './components/shop/CartContent';
 import AdminDashboard from './components/admin/AdminDashboard';
 
-// Explicitly import jsPDF and autoTable to prevent bundler tree-shaking issues
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import { generateInvoicePDF } from './utils/pdfGenerator';
 
 export default function App() {
   const [view, setView] = useState('shop'); 
@@ -181,129 +179,19 @@ export default function App() {
 
       // GENERATE AND DOWNLOAD RETAIL BILL PDF (PERFECTLY ALIGNED)
       try {
-        const doc = new jsPDF();
-        
-        // Helper inline function to minimize style repetition
-        const write = (text, x, y, size = 10, style = "normal", color = [17, 24, 39], opts = {}) => {
-          doc.setFont("helvetica", style);
-          doc.setFontSize(size);
-          doc.setTextColor(...color);
-          doc.text(text, x, y, opts);
-        };
-
-        // Header Section
-        write("Masala Munchies", 15, 20, 22, "bold", [180, 83, 9]);
-        write("Premium Homemade Savory Snacks & Khakhras", 15, 26, 10, "normal", [100, 116, 139]);
-        write("RETAIL BILL", 195, 20, 13, "bold", [17, 24, 39], { align: "right" });
-        write(`Date: ${today}`, 195, 26, 10, "normal", [55, 65, 81], { align: "right" });
-        write(`Bill No: ${billNo}`, 195, 32, 10, "normal", [55, 65, 81], { align: "right" });
-        
-        doc.setDrawColor(229, 231, 235);
-        doc.line(15, 37, 195, 37);
-        
-        // Billing Info Section
-        write("Bill To:", 15, 45, 10, "bold", [17, 24, 39]);
-        write(`Name: ${customerName}`, 15, 51, 10, "normal", [17, 24, 39]);
-        const splitAddress = doc.splitTextToSize(`Address: ${customerAddress}`, 180);
-        write(splitAddress, 15, 57, 10, "normal", [17, 24, 39]);
-        
-        // Fixed vertical alignment padding to prevent table collisions
-        const tableStartY = 57 + (splitAddress.length * 5) + 5;
-        const tableColumns = ["Product Description", "Pack Size", "MRP", "Rate", "Qty", "Total"];
-        
-        const tableRows = cart.map(item => {
-          const product = inventory.find(p => p.id === item.productId);
-          const variant = product?.variants?.find(v => v.variantId === item.variantId);
-          return product && variant ? [
-            product.name, 
-            variant.weight, 
-            `Rs. ${variant.mrp || variant.price}`, 
-            `Rs. ${variant.price}`, 
-            item.qty.toString(), 
-            `Rs. ${variant.price * item.qty}`
-          ] : null;
-        }).filter(Boolean);
-        
-        // 1. GENERATE TABLE WITH FORCED HEADER ALIGNMENT MATCHING
-        autoTable(doc, {
-          startY: tableStartY,
-          head: [tableColumns],
-          body: tableRows,
-          theme: 'striped',
-          headStyles: { fillColor: [5, 150, 105], fontStyle: 'bold' }, 
-          styles: { font: 'helvetica', fontSize: 10 },
-          columnStyles: { 
-            0: { cellWidth: 70, halign: 'left' }, 
-            1: { cellWidth: 20, halign: 'left' }, 
-            2: { cellWidth: 20, halign: 'right' }, 
-            3: { cellWidth: 20, halign: 'right' }, 
-            4: { cellWidth: 15, halign: 'center' }, 
-            5: { cellWidth: 35, halign: 'right' } 
-          },
-          // FORCE HEADERS TO MATCH COLUMN ALIGNMENT DATA
-          didParseCell: function (data) {
-            if (data.section === 'head') {
-              if ([2, 3, 5].includes(data.column.index)) {
-                data.cell.styles.halign = 'right';
-              } else if (data.column.index === 4) {
-                data.cell.styles.halign = 'center';
-              }
-            }
-          }
+        // Execute modularized invoice PDF structure generation
+        generateInvoicePDF({
+          billNo,
+          customerName,
+          customerAddress,
+          totalMrp,
+          subtotal: cartTotal,
+          discount: Math.round(discount),
+          deliveryFee,
+          grandTotal,
+          date: today,
+          items: orderItemsForDb
         });
-        
-        const finalY = doc.lastAutoTable?.finalY || (tableStartY + (tableRows.length * 8) + 15);
-        let currentY = finalY + 10;
-        
-        const mrpSavings = totalMrp - cartTotal;
-        const summaryMetrics = [
-          { label: "Total MRP:", val: `Rs. ${totalMrp}`, color: [107, 114, 128] },
-          ...(mrpSavings > 0 ? [{ label: "MRP Discount:", val: `-Rs. ${mrpSavings}`, color: [5, 150, 105] }] : []),
-          { label: "Subtotal (Sale Price):", val: `Rs. ${cartTotal}`, color: [55, 65, 81] },
-          ...(discount > 0 ? [{ label: "Store Discount (5%):", val: `-Rs. ${discount}`, color: [220, 38, 38] }] : []),
-          { label: "Delivery Fee:", val: deliveryFee > 0 ? `Rs. ${deliveryFee}` : "FREE", color: [55, 65, 81] }
-        ];
-
-        summaryMetrics.forEach(metric => {
-          write(metric.label, 145, currentY, 10, "normal", metric.color, { align: "left" });
-          write(metric.val, 195, currentY, 10, "normal", metric.color, { align: "right" });
-          currentY += 6;
-        });
-        
-        doc.setDrawColor(209, 213, 219);
-        doc.line(145, currentY - 2, 195, currentY - 2);
-        currentY += 6; 
-        
-        write("Grand Total:", 145, currentY, 11, "bold", [17, 24, 39], { align: "left" });
-        write(`Rs. ${Math.round(grandTotal)}`, 195, currentY, 11, "bold", [17, 24, 39], { align: "right" });
-        
-        // Guard loop to check page boundary safety
-        currentY += 20;
-        if (currentY > 250) { doc.addPage(); currentY = 20; }
-        
-        doc.setDrawColor(229, 231, 235);
-        doc.line(15, currentY, 195, currentY);
-        currentY += 8;
-        
-        // 2. FOOTER SECTION WITH BALANCED SIGNATURE BLOCK
-        // Left Column: Declarations
-        write("Declaration:", 15, currentY, 10, "bold", [17, 24, 39]);
-        const currentYForSignature = currentY; // Anchor point for right side
-        
-        currentY += 5;
-        const decLines = doc.splitTextToSize("GST is not applicable on this purchase as the seller's annual turnover is below the statutory registration threshold.", 110);
-        write(decLines, 15, currentY, 9, "italic", [107, 114, 128]);
-        
-        currentY += (decLines.length * 4.5) + 6;
-        write("Thank you for your order! Homemade with love and utmost hygiene.", 15, currentY, 10, "bold", [5, 150, 105]);
-        
-        // Right Column: Official Signature Block (Balances the white space out completely)
-        write("For Masala Munchies", 195, currentYForSignature, 10, "bold", [17, 24, 39], { align: "right" });
-        doc.setDrawColor(209, 213, 219);
-        doc.line(150, currentYForSignature + 14, 195, currentYForSignature + 14); // Signature line strip
-        write("Authorized Signatory", 195, currentYForSignature + 19, 9, "normal", [107, 114, 128], { align: "right" });
-        
-        doc.save(`Invoice_${billNo}.pdf`);
       } catch (pdfError) {
         console.error("Critical error while generating transactional local PDF:", pdfError);
       }

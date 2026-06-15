@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { CONFIG } from '../../config';
 
+import { generateInvoicePDF } from '../../utils/pdfGenerator';
+
 export default function AdminDashboard({ inventory, setInventory }) {
   const [idToken, setIdToken] = useState(null);
   const [email, setEmail] = useState('');
@@ -387,6 +389,26 @@ export default function AdminDashboard({ inventory, setInventory }) {
                         ) : (
                           <><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> PAYMENT PENDING</>
                         )}
+                      </button>
+                      <button
+                        onClick={() => generateInvoicePDF({
+                          billNo: order.billNo,
+                          customerName: order.customerName,
+                          customerAddress: order.customerAddress,
+                          totalMrp: order.totalMrp,
+                          subtotal: order.subtotal,
+                          discount: order.discountApplied || 0,
+                          deliveryFee: order.deliveryFee,
+                          grandTotal: order.grandTotal,
+                          date: order.timestamp ? order.timestamp.split(',')[0] : new Date().toLocaleDateString('en-IN'),
+                          items: order.items || [] // Maps the sub-array directly to layout generator safely
+                        })}
+                        className="flex items-center gap-1 px-3 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg text-xs font-bold transition-colors border border-emerald-200 cursor-pointer shadow-xs"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                        </svg>
+                        <span>Download Bill</span>
                       </button>
                     </div>
                     <div>
