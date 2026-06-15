@@ -2,15 +2,18 @@ import { useState, useEffect } from 'react';
 import ProductImages from './ProductImages';
 
 export default function ProductCard({ product, cart, updateCart }) {
-  const defaultVariantId = product.variants && product.variants.length > 0 ? product.variants[0].variantId : null;
+  const firstInStockVariant = (product.variants || []).find(v => Number(v.stockLeft || 0) > 0);
+  const defaultVariantId = firstInStockVariant ? firstInStockVariant.variantId : (product.variants?.[0]?.variantId || null);
   const [activeVariantId, setActiveVariantId] = useState(defaultVariantId);
   const [isExpanded, setIsExpanded] = useState(false);
 
   useEffect(() => {
-    if (product.variants?.length > 0) {
-      setActiveVariantId(product.variants[0].variantId);
-    }
-  }, [product.variants]);
+  if (product.variants?.length > 0) {
+    // Dynamically default to an available variant when the underlying database collection refreshes
+    const firstInStock = product.variants.find(v => Number(v.stockLeft || 0) > 0);
+    setActiveVariantId(firstInStock ? firstInStock.variantId : product.variants[0].variantId);
+  }
+}, [product.variants]);
 
   // Reset expansion state when variant changes
   useEffect(() => {
@@ -23,8 +26,8 @@ export default function ProductCard({ product, cart, updateCart }) {
   const cartItem = cart.find(item => item.variantId === activeVariantId);
   const currentCartQty = cartItem ? cartItem.qty : 0;
   
-  const isOutOfStock = activeVariant.stockLeft === 0;
-  const reachedLimit = currentCartQty >= activeVariant.stockLeft;
+  const isOutOfStock = Number(activeVariant.stockLeft || 0) <= 0;
+  const reachedLimit = currentCartQty >= Number(activeVariant.stockLeft || 0);
   
   const productImages = activeVariant.images && activeVariant.images.length > 0 ? activeVariant.images : [];
   const descriptionText = activeVariant.description || "";

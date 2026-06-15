@@ -4,6 +4,10 @@ import ProductCard from './components/shop/ProductCard';
 import CartContent from './components/shop/CartContent';
 import AdminDashboard from './components/admin/AdminDashboard';
 
+// Explicitly import jsPDF and autoTable to prevent bundler tree-shaking issues
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+
 export default function App() {
   const [view, setView] = useState('shop'); 
   const [inventory, setInventory] = useState([]);
@@ -18,15 +22,8 @@ export default function App() {
   const [customerAddress, setCustomerAddress] = useState('');
 
   useEffect(() => {
-    if (isMobileCartOpen) {
-      document.body.style.overflow = 'hidden'; 
-    } else {
-      document.body.style.overflow = 'unset'; 
-    }
-
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
+    document.body.style.overflow = isMobileCartOpen ? 'hidden' : 'unset';
+    return () => { document.body.style.overflow = 'unset'; };
   }, [isMobileCartOpen]);
 
   useEffect(() => {
@@ -58,7 +55,7 @@ export default function App() {
 
   const updateCart = (productId, variantId, delta) => {
     const product = inventory.find(p => p.id === productId);
-    const variant = product?.variants?.find(v => v.variantId === variantId);
+    const variant = product.variants?.find(v => v.variantId === variantId);
     if (!variant) return;
     
     setCart(prevCart => {
@@ -110,6 +107,7 @@ export default function App() {
     let updatedInventory = JSON.parse(JSON.stringify(inventory)); 
     let orderLines = [];
     let orderItemsForDb = []; 
+    let totalMrp = 0;
 
     cart.forEach(cartItem => {
       const productIndex = updatedInventory.findIndex(p => p.id === cartItem.productId);
@@ -119,53 +117,208 @@ export default function App() {
       const variantIndex = product.variants?.findIndex(v => v.variantId === cartItem.variantId);
       if (variantIndex === -1 || variantIndex === undefined) return;
       
-      product.variants[variantIndex].stockLeft -= cartItem.qty;
-      const itemTotal = product.variants[variantIndex].price * cartItem.qty;
+      const variant = product.variants[variantIndex];
+      variant.stockLeft -= cartItem.qty;
       
-      orderLines.push(`- ${cartItem.qty}x ${product.name} (${product.variants[variantIndex].weight}) (₹${itemTotal})`);
+      const itemTotal = variant.price * cartItem.qty;
+      const itemMrpTotal = (variant.mrp || variant.price) * cartItem.qty;
+      totalMrp += itemMrpTotal;
+      
+      const lineMrpText = variant.mrp && variant.mrp > variant.price 
+        ? ` (₹${itemTotal} | MRP: ₹${itemMrpTotal})` 
+        : ` (₹${itemTotal})`;
+      
+      orderLines.push(`- ${cartItem.qty}x ${product.name} (${variant.weight})${lineMrpText}`);
       
       orderItemsForDb.push({
         name: product.name,
-        weight: product.variants[variantIndex].weight,
+        weight: variant.weight,
         qty: cartItem.qty,
-        price: product.variants[variantIndex].price,
+        price: variant.price,
+        mrp: variant.mrp || variant.price,
         total: itemTotal
       });
     });
 
-    // Issue 3: Unified delivery fee processing algorithms synchronized cleanly
+    // CONSISTENT CALCULATION LOGIC
     const discount = cartTotal >= 200 ? Math.round(Math.min(cartTotal * 0.05, 50)) : 0;
     const totalBeforeDelivery = cartTotal - discount;
-    const deliveryFee = totalBeforeDelivery < 200 ? 50 : 0;
-    const finalGrandTotal = totalBeforeDelivery + deliveryFee;
+    const deliveryFee = cartTotal < 200 ? 50 : 0; // Fixed condition based on base subtotal
+    const grandTotal = totalBeforeDelivery + deliveryFee;
 
     try {
+      // 1. Fetch and atomically increment sequential counter from Firebase
+      const counterResponse = await fetch(`${CONFIG.FIREBASE_URL}/counters.json`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lastBillNo: { ".sv": { "increment": 1 } } })
+      });
+      const counterData = await counterResponse.json();
+      const rawCounter = counterData?.lastBillNo || 1;
+
+      const baseValue = 1000; // Your billing number starting baseline
+      const billNo = `MM-${baseValue + rawCounter}`; // Generates MM-1001, MM-1002, etc.
+
+      // 2. Save inventory updates
       await fetch(`${CONFIG.FIREBASE_URL}/inventory.json`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedInventory)
       });
 
+      const today = new Date().toLocaleDateString('en-IN');
+
       await fetch(`${CONFIG.FIREBASE_URL}/orders.json`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          customerName,
-          customerAddress,
+          billNo, customerName, customerAddress, totalMrp, subtotal: cartTotal, deliveryFee,
           timestamp: new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
-          items: orderItemsForDb,
-          subtotal: cartTotal,
-          discountApplied: Math.round(discount),
-          deliveryFee: deliveryFee,
-          grandTotal: Math.round(finalGrandTotal),
-          paymentStatus: 'pending'
+          items: orderItemsForDb, discountApplied: Math.round(discount),
+          grandTotal: Math.round(grandTotal), paymentStatus: 'pending'
         })
       });
 
-      const discountMessageText = discount > 0 ? `%0A*Discount (5%25 Off):* -₹${Math.round(discount)}` : '';
-      const deliveryMessageText = `%0A*Delivery Charges:* ${deliveryFee > 0 ? `₹${deliveryFee}` : 'FREE'}`;
-      const message = `*New Order - ${CONFIG.brandName}*%0A%0A*Customer:* ${customerName}%0A*Address:* ${customerAddress}%0A%0A*Items:*%0A${orderLines.join('%0A')}%0A%0A*Subtotal:* ₹${cartTotal}${discountMessageText}${deliveryMessageText}%0A*Grand Total: ₹${Math.round(finalGrandTotal)}*`;
-      window.open(`https://wa.me/${atob(CONFIG.hiddenPhone)}?text=${message}`, '_blank');
+      // GENERATE AND DOWNLOAD RETAIL BILL PDF (PERFECTLY ALIGNED)
+      try {
+        const doc = new jsPDF();
+        
+        // Helper inline function to minimize style repetition
+        const write = (text, x, y, size = 10, style = "normal", color = [17, 24, 39], opts = {}) => {
+          doc.setFont("helvetica", style);
+          doc.setFontSize(size);
+          doc.setTextColor(...color);
+          doc.text(text, x, y, opts);
+        };
+
+        // Header Section
+        write("Masala Munchies", 15, 20, 22, "bold", [180, 83, 9]);
+        write("Premium Homemade Savory Snacks & Khakhras", 15, 26, 10, "normal", [100, 116, 139]);
+        write("RETAIL BILL", 195, 20, 13, "bold", [17, 24, 39], { align: "right" });
+        write(`Date: ${today}`, 195, 26, 10, "normal", [55, 65, 81], { align: "right" });
+        write(`Bill No: ${billNo}`, 195, 32, 10, "normal", [55, 65, 81], { align: "right" });
+        
+        doc.setDrawColor(229, 231, 235);
+        doc.line(15, 37, 195, 37);
+        
+        // Billing Info Section
+        write("Bill To:", 15, 45, 10, "bold", [17, 24, 39]);
+        write(`Name: ${customerName}`, 15, 51, 10, "normal", [17, 24, 39]);
+        const splitAddress = doc.splitTextToSize(`Address: ${customerAddress}`, 180);
+        write(splitAddress, 15, 57, 10, "normal", [17, 24, 39]);
+        
+        // Fixed vertical alignment padding to prevent table collisions
+        const tableStartY = 57 + (splitAddress.length * 5) + 5;
+        const tableColumns = ["Product Description", "Pack Size", "MRP", "Rate", "Qty", "Total"];
+        
+        const tableRows = cart.map(item => {
+          const product = inventory.find(p => p.id === item.productId);
+          const variant = product?.variants?.find(v => v.variantId === item.variantId);
+          return product && variant ? [
+            product.name, 
+            variant.weight, 
+            `Rs. ${variant.mrp || variant.price}`, 
+            `Rs. ${variant.price}`, 
+            item.qty.toString(), 
+            `Rs. ${variant.price * item.qty}`
+          ] : null;
+        }).filter(Boolean);
+        
+        // 1. GENERATE TABLE WITH FORCED HEADER ALIGNMENT MATCHING
+        autoTable(doc, {
+          startY: tableStartY,
+          head: [tableColumns],
+          body: tableRows,
+          theme: 'striped',
+          headStyles: { fillColor: [5, 150, 105], fontStyle: 'bold' }, 
+          styles: { font: 'helvetica', fontSize: 10 },
+          columnStyles: { 
+            0: { cellWidth: 70, halign: 'left' }, 
+            1: { cellWidth: 20, halign: 'left' }, 
+            2: { cellWidth: 20, halign: 'right' }, 
+            3: { cellWidth: 20, halign: 'right' }, 
+            4: { cellWidth: 15, halign: 'center' }, 
+            5: { cellWidth: 35, halign: 'right' } 
+          },
+          // FORCE HEADERS TO MATCH COLUMN ALIGNMENT DATA
+          didParseCell: function (data) {
+            if (data.section === 'head') {
+              if ([2, 3, 5].includes(data.column.index)) {
+                data.cell.styles.halign = 'right';
+              } else if (data.column.index === 4) {
+                data.cell.styles.halign = 'center';
+              }
+            }
+          }
+        });
+        
+        const finalY = doc.lastAutoTable?.finalY || (tableStartY + (tableRows.length * 8) + 15);
+        let currentY = finalY + 10;
+        
+        const mrpSavings = totalMrp - cartTotal;
+        const summaryMetrics = [
+          { label: "Total MRP:", val: `Rs. ${totalMrp}`, color: [107, 114, 128] },
+          ...(mrpSavings > 0 ? [{ label: "MRP Discount:", val: `-Rs. ${mrpSavings}`, color: [5, 150, 105] }] : []),
+          { label: "Subtotal (Sale Price):", val: `Rs. ${cartTotal}`, color: [55, 65, 81] },
+          ...(discount > 0 ? [{ label: "Store Discount (5%):", val: `-Rs. ${discount}`, color: [220, 38, 38] }] : []),
+          { label: "Delivery Fee:", val: deliveryFee > 0 ? `Rs. ${deliveryFee}` : "FREE", color: [55, 65, 81] }
+        ];
+
+        summaryMetrics.forEach(metric => {
+          write(metric.label, 145, currentY, 10, "normal", metric.color, { align: "left" });
+          write(metric.val, 195, currentY, 10, "normal", metric.color, { align: "right" });
+          currentY += 6;
+        });
+        
+        doc.setDrawColor(209, 213, 219);
+        doc.line(145, currentY - 2, 195, currentY - 2);
+        currentY += 6; 
+        
+        write("Grand Total:", 145, currentY, 11, "bold", [17, 24, 39], { align: "left" });
+        write(`Rs. ${Math.round(grandTotal)}`, 195, currentY, 11, "bold", [17, 24, 39], { align: "right" });
+        
+        // Guard loop to check page boundary safety
+        currentY += 20;
+        if (currentY > 250) { doc.addPage(); currentY = 20; }
+        
+        doc.setDrawColor(229, 231, 235);
+        doc.line(15, currentY, 195, currentY);
+        currentY += 8;
+        
+        // 2. FOOTER SECTION WITH BALANCED SIGNATURE BLOCK
+        // Left Column: Declarations
+        write("Declaration:", 15, currentY, 10, "bold", [17, 24, 39]);
+        const currentYForSignature = currentY; // Anchor point for right side
+        
+        currentY += 5;
+        const decLines = doc.splitTextToSize("GST is not applicable on this purchase as the seller's annual turnover is below the statutory registration threshold.", 110);
+        write(decLines, 15, currentY, 9, "italic", [107, 114, 128]);
+        
+        currentY += (decLines.length * 4.5) + 6;
+        write("Thank you for your order! Homemade with love and utmost hygiene.", 15, currentY, 10, "bold", [5, 150, 105]);
+        
+        // Right Column: Official Signature Block (Balances the white space out completely)
+        write("For Masala Munchies", 195, currentYForSignature, 10, "bold", [17, 24, 39], { align: "right" });
+        doc.setDrawColor(209, 213, 219);
+        doc.line(150, currentYForSignature + 14, 195, currentYForSignature + 14); // Signature line strip
+        write("Authorized Signatory", 195, currentYForSignature + 19, 9, "normal", [107, 114, 128], { align: "right" });
+        
+        doc.save(`Invoice_${billNo}.pdf`);
+      } catch (pdfError) {
+        console.error("Critical error while generating transactional local PDF:", pdfError);
+      }
+
+      const mrpSavings = totalMrp - cartTotal;
+      const mrpSavingsText = mrpSavings > 0 ? `%0A*MRP Discount:* -₹${mrpSavings}` : '';
+      const discountMessageText = discount > 0 ? `%0A*Store Discount (5%25 Off):* -₹${Math.round(discount)}` : '';
+      const deliveryFeeMessageText = `%0A*Delivery Fee:* ${deliveryFee > 0 ? `₹${deliveryFee}` : 'FREE'}`;
+      
+      // Fixed WhatsApp Markdown bold syntax closure bug
+      const message = `*New Order - ${CONFIG.brandName}*%0A%0A*Customer:* ${customerName}%0A*Address:* ${customerAddress}%0A%0A*Items:*%0A${orderLines.join('%0A')}%0A%0A*Total MRP:* ₹${totalMrp}${mrpSavingsText}%0A*Subtotal (Sale Price):* ₹${cartTotal}${discountMessageText}${deliveryFeeMessageText}%0A%0A*Grand Total: ₹${Math.round(grandTotal)}*${mrpSavings + discount > 0 ? `%0A%0A*Total Savings:* ₹${Math.round(mrpSavings + discount)} 🎉` : ''}`;
+      
+      setTimeout(() => {
+        window.open(`https://wa.me/${atob(CONFIG.hiddenPhone)}?text=${message}`, '_blank');
+      }, 300);
 
       setInventory(updatedInventory);
       setCart([]);
@@ -187,8 +340,14 @@ export default function App() {
     return matchesCategory && matchesSearch;
   })
   .sort((a, b) => {
-    const aAllOut = (a.variants || []).every(v => v.stockLeft === 0) ? 1 : 0;
-    const bAllOut = (b.variants || []).every(v => v.stockLeft === 0) ? 1 : 0;
+    const aVariants = a.variants || [];
+    const bVariants = b.variants || [];
+
+    // 1. Force numeric conversion to prevent string type bugs
+    // 2. Ensure the product actually has variants before declaring it out of stock
+    const aAllOut = aVariants.length > 0 && aVariants.every(v => Number(v.stockLeft || 0) <= 0) ? 1 : 0;
+    const bAllOut = bVariants.length > 0 && bVariants.every(v => Number(v.stockLeft || 0) <= 0) ? 1 : 0;
+
     return aAllOut - bAllOut;
   });
   
@@ -307,18 +466,10 @@ export default function App() {
                 <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2"><svg className="w-5 h-5 text-[#b45309]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg>Your Basket</h2>
               </div>
               <CartContent 
-                cart={cart} 
-                inventory={inventory} 
-                cartTotal={cartTotal} 
-                updateCart={updateCart} 
-                removeFromCart={removeFromCart} 
-                clearCart={clearCart} 
-                customerName={customerName} 
-                setCustomerName={setCustomerName} 
-                customerAddress={customerAddress} 
-                setCustomerAddress={setCustomerAddress} 
-                handleCheckout={handleCheckout} 
-                isCheckingOut={isCheckingOut} 
+                cart={cart} inventory={inventory} cartTotal={cartTotal} updateCart={updateCart} 
+                removeFromCart={removeFromCart} clearCart={clearCart} customerName={customerName} 
+                setCustomerName={setCustomerName} customerAddress={customerAddress} setCustomerAddress={setCustomerAddress} 
+                handleCheckout={handleCheckout} isCheckingOut={isCheckingOut} 
               />
             </div>
           </aside>
@@ -343,18 +494,10 @@ export default function App() {
                   <button onClick={() => setIsMobileCartOpen(false)} className="p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 cursor-pointer"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
                 </div>
                 <CartContent 
-                  cart={cart} 
-                  inventory={inventory} 
-                  cartTotal={cartTotal} 
-                  updateCart={updateCart} 
-                  removeFromCart={removeFromCart} 
-                  clearCart={clearCart} 
-                  customerName={customerName} 
-                  setCustomerName={setCustomerName} 
-                  customerAddress={customerAddress} 
-                  setCustomerAddress={setCustomerAddress} 
-                  handleCheckout={handleCheckout} 
-                  isCheckingOut={isCheckingOut} 
+                  cart={cart} inventory={inventory} cartTotal={cartTotal} updateCart={updateCart} 
+                  removeFromCart={removeFromCart} clearCart={clearCart} customerName={customerName} 
+                  setCustomerName={setCustomerName} customerAddress={customerAddress} setCustomerAddress={setCustomerAddress} 
+                  handleCheckout={handleCheckout} isCheckingOut={isCheckingOut} 
                 />
               </div>
             </div>

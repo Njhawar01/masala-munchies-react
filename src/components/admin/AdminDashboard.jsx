@@ -364,7 +364,7 @@ export default function AdminDashboard({ inventory, setInventory }) {
               const subtotal = order.subtotal || order.cartTotal || (order.items || []).reduce((acc, item) => acc + (item.total || 0), 0);
               const discount = order.discountApplied !== undefined ? order.discountApplied : (subtotal >= 200 ? Math.round(Math.min(subtotal * 0.05, 50)) : 0);
               const totalBeforeDelivery = subtotal - discount;
-              const deliveryFee = order.deliveryFee !== undefined ? order.deliveryFee : (totalBeforeDelivery < 200 ? 50 : 0);
+              const deliveryFee = order.deliveryFee !== undefined ? order.deliveryFee : (subtotal < 200 ? 50 : 0); 
               const computedGrandTotal = order.grandTotal || (totalBeforeDelivery + deliveryFee);
 
               return (
