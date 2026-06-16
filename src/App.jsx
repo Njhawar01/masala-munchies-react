@@ -19,6 +19,9 @@ export default function App() {
   const [customerName, setCustomerName] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
 
+  // Explicit state for pacing checkout status changes
+  const [checkoutStatus, setCheckoutStatus] = useState('');
+
   useEffect(() => {
     document.body.style.overflow = isMobileCartOpen ? 'hidden' : 'unset';
     return () => { document.body.style.overflow = 'unset'; };
@@ -138,14 +141,13 @@ export default function App() {
       });
     });
 
-    // CONSISTENT CALCULATION LOGIC
     const discount = cartTotal >= 200 ? Math.round(Math.min(cartTotal * 0.05, 50)) : 0;
     const totalBeforeDelivery = cartTotal - discount;
-    const deliveryFee = cartTotal < 200 ? 50 : 0; // Fixed condition based on base subtotal
+    const deliveryFee = cartTotal < 200 ? 50 : 0; 
     const grandTotal = totalBeforeDelivery + deliveryFee;
 
     try {
-      // 1. Fetch and atomically increment sequential counter from Firebase
+      // Milestone 1: Record Order inside Firebase Database Environment
       const counterResponse = await fetch(`${CONFIG.FIREBASE_URL}/counters.json`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -154,10 +156,9 @@ export default function App() {
       const counterData = await counterResponse.json();
       const rawCounter = counterData?.lastBillNo || 1;
 
-      const baseValue = 1000; // Your billing number starting baseline
-      const billNo = `MM-${baseValue + rawCounter}`; // Generates MM-1001, MM-1002, etc.
+      const baseValue = 1000; 
+      const billNo = `MM-${baseValue + rawCounter}`; 
 
-      // 2. Save inventory updates
       await fetch(`${CONFIG.FIREBASE_URL}/inventory.json`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -177,9 +178,10 @@ export default function App() {
         })
       });
 
-      // GENERATE AND DOWNLOAD RETAIL BILL PDF (PERFECTLY ALIGNED)
+      // Milestone 2: Update status message and generate PDF
+      setCheckoutStatus("📄 Generating and downloading your retail bill...");
+      
       try {
-        // Execute modularized invoice PDF structure generation
         generateInvoicePDF({
           billNo,
           customerName,
@@ -196,26 +198,35 @@ export default function App() {
         console.error("Critical error while generating transactional local PDF:", pdfError);
       }
 
+      // Explicit delay of 2.5 seconds to read file system retrieval status
+      await new Promise(resolve => setTimeout(resolve, 2500));
+
+      // Milestone 3: Inform customer about the upcoming browser tab change
+      setCheckoutStatus("🚀 Bill downloaded! Redirecting you to WhatsApp to finalize your order...");
+
+      // Explicit delay of 2 seconds to read destination message cleanly
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
       const mrpSavings = totalMrp - cartTotal;
       const mrpSavingsText = mrpSavings > 0 ? `%0A*MRP Discount:* -₹${mrpSavings}` : '';
       const discountMessageText = discount > 0 ? `%0A*Store Discount (5%25 Off):* -₹${Math.round(discount)}` : '';
       const deliveryFeeMessageText = `%0A*Delivery Fee:* ${deliveryFee > 0 ? `₹${deliveryFee}` : 'FREE'}`;
       
-      // Fixed WhatsApp Markdown bold syntax closure bug
       const message = `*New Order - ${CONFIG.brandName}*%0A%0A*Customer:* ${customerName}%0A*Address:* ${customerAddress}%0A%0A*Items:*%0A${orderLines.join('%0A')}%0A%0A*Total MRP:* ₹${totalMrp}${mrpSavingsText}%0A*Subtotal (Sale Price):* ₹${cartTotal}${discountMessageText}${deliveryFeeMessageText}%0A%0A*Grand Total: ₹${Math.round(grandTotal)}*${mrpSavings + discount > 0 ? `%0A%0A*Total Savings:* ₹${Math.round(mrpSavings + discount)} 🎉` : ''}`;
       
-      setTimeout(() => {
-        window.open(`https://wa.me/${atob(CONFIG.hiddenPhone)}?text=${message}`, '_blank');
-      }, 300);
+      window.open(`https://wa.me/${atob(CONFIG.hiddenPhone)}?text=${message}`, '_blank');
 
+      // Global component memory reset operations
       setInventory(updatedInventory);
       setCart([]);
       setIsMobileCartOpen(false);
       setCustomerName('');
       setCustomerAddress('');
+      setCheckoutStatus('');
     } catch (error) {
       console.error("Checkout failed:", error);
       alert("Something went wrong. Please try again.");
+      setCheckoutStatus('');
     } finally {
       setIsCheckingOut(false);
     }
@@ -230,12 +241,8 @@ export default function App() {
   .sort((a, b) => {
     const aVariants = a.variants || [];
     const bVariants = b.variants || [];
-
-    // 1. Force numeric conversion to prevent string type bugs
-    // 2. Ensure the product actually has variants before declaring it out of stock
     const aAllOut = aVariants.length > 0 && aVariants.every(v => Number(v.stockLeft || 0) <= 0) ? 1 : 0;
     const bAllOut = bVariants.length > 0 && bVariants.every(v => Number(v.stockLeft || 0) <= 0) ? 1 : 0;
-
     return aAllOut - bAllOut;
   });
   
@@ -390,6 +397,25 @@ export default function App() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Full-screen Overlay Dialog Banner to anchor execution text changes */}
+      {checkoutStatus && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full border border-orange-100 flex flex-col items-center text-center space-y-4">
+            <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 animate-bounce">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 12l2 2 4-4" />
+              </svg>
+            </div>
+            <p className="text-sm font-bold text-gray-800 tracking-wide transition-all duration-300">
+              {checkoutStatus}
+            </p>
+            <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
+              <div className="bg-emerald-600 h-full rounded-full animate-pulse w-3/4"></div>
+            </div>
+          </div>
         </div>
       )}
     </div>
