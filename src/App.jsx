@@ -21,6 +21,8 @@ export default function App() {
 
   // Explicit state for pacing checkout status changes
   const [checkoutStatus, setCheckoutStatus] = useState('');
+  // Fallback redirection link state for popup blocker bypass
+  const [whatsappUrl, setWhatsappUrl] = useState('');
 
   useEffect(() => {
     document.body.style.overflow = isMobileCartOpen ? 'hidden' : 'unset';
@@ -44,6 +46,26 @@ export default function App() {
     }
     fetchInventory();
   }, []);
+
+  // Automated SEO meta text catalog observer
+  useEffect(() => {
+    const brand = CONFIG.brandName || "Joyable";
+    if (category === 'All') {
+      document.title = `${brand} | Authentic Home-Style Savory Snacks & Khakhras`;
+    } else {
+      document.title = `Buy Premium ${category} Online | ${brand}`;
+    }
+    
+    const metaDescription = document.querySelector('meta[name="description"]');
+    if (metaDescription) {
+      metaDescription.setAttribute(
+        'content', 
+        category === 'All' 
+          ? `Order fresh, preservative-free home-style savory snacks and crisp khakhras online from ${brand}. Delivered fresh to your doorstep.`
+          : `Explore our premium collection of crispy, delicious homemade ${category} from ${brand}. 100% Vegetarian with zero added preservatives.`
+      );
+    }
+  }, [category]);
 
   if (isLoading && inventory.length === 0) {
     return (
@@ -179,7 +201,7 @@ export default function App() {
       });
 
       // Milestone 2: Update status message and generate PDF
-      setCheckoutStatus("📄 Generating and downloading your retail bill...");
+      setCheckoutStatus("📄 Generating and downloading your retail bill... ");
       
       try {
         generateInvoicePDF({
@@ -204,9 +226,6 @@ export default function App() {
       // Milestone 3: Inform customer about the upcoming browser tab change
       setCheckoutStatus("🚀 Bill downloaded! Redirecting you to WhatsApp to finalize your order...");
 
-      // Explicit delay of 2 seconds to read destination message cleanly
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
       const mrpSavings = totalMrp - cartTotal;
       const mrpSavingsText = mrpSavings > 0 ? `%0A*MRP Discount:* -₹${mrpSavings}` : '';
       const discountMessageText = discount > 0 ? `%0A*Store Discount (5%25 Off):* -₹${Math.round(discount)}` : '';
@@ -214,7 +233,18 @@ export default function App() {
       
       const message = `*New Order - ${CONFIG.brandName}*%0A%0A*Customer:* ${customerName}%0A*Address:* ${customerAddress}%0A%0A*Items:*%0A${orderLines.join('%0A')}%0A%0A*Total MRP:* ₹${totalMrp}${mrpSavingsText}%0A*Subtotal (Sale Price):* ₹${cartTotal}${discountMessageText}${deliveryFeeMessageText}%0A%0A*Grand Total: ₹${Math.round(grandTotal)}*${mrpSavings + discount > 0 ? `%0A%0A*Total Savings:* ₹${Math.round(mrpSavings + discount)} 🎉` : ''}`;
       
-      window.open(`https://wa.me/${atob(CONFIG.hiddenPhone)}?text=${message}`, '_blank');
+      const whatsappMessage = `whatsapp://send?phone=${atob(CONFIG.hiddenPhone)}&text=${message}`;
+      const webWhatsApp = `https://web.whatsapp.com/send?phone=${atob(CONFIG.hiddenPhone)}&text=${message}`;
+
+      // Detect if user is on mobile or desktop to separate window logic routing
+      const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+      const targetUrl = isMobile ? whatsappMessage : webWhatsApp;
+
+      // Stage redirection path into fallback state memory immediately before text delays
+      setWhatsappUrl(targetUrl);
+
+      // Explicit delay of 2 seconds to read destination message cleanly
+      await new Promise(resolve => setTimeout(resolve, 2000));
 
       // Global component memory reset operations
       setInventory(updatedInventory);
@@ -223,10 +253,21 @@ export default function App() {
       setCustomerName('');
       setCustomerAddress('');
       setCheckoutStatus('');
+      setWhatsappUrl('');
+
+      // DEVICE SPECIFIC HANDLING BLOCK
+      if (isMobile) {
+        // Mobile uses native deep links, keeping current tab context perfectly safe
+        window.location.href = whatsappMessage;
+      } else {
+        // Desktop forces a clean new tab container layout, saving store tab from navigating away
+        window.open(webWhatsApp, '_blank', 'noopener,noreferrer');
+      }
     } catch (error) {
       console.error("Checkout failed:", error);
       alert("Something went wrong. Please try again.");
       setCheckoutStatus('');
+      setWhatsappUrl('');
     } finally {
       setIsCheckingOut(false);
     }
@@ -402,16 +443,28 @@ export default function App() {
 
       {/* Full-screen Overlay Dialog Banner to anchor execution text changes */}
       {checkoutStatus && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-fade-in">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-fade-in">
           <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full border border-orange-100 flex flex-col items-center text-center space-y-4">
-            <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 animate-bounce">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 12l2 2 4-4" />
-              </svg>
-            </div>
+            
+            {/* Animated Loading Ring Spinner */}
+            <div className="w-12 h-12 rounded-full border-4 border-emerald-100 border-t-emerald-600 animate-spin flex items-center justify-center"></div>
+
             <p className="text-sm font-bold text-gray-800 tracking-wide transition-all duration-300">
               {checkoutStatus}
             </p>
+
+            {/* Direct unblockable anchor link fallback loop */}
+            {checkoutStatus.includes("Redirecting") && whatsappUrl && (
+              <a 
+                href={whatsappUrl}
+                target={/Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ? "_self" : "_blank"}
+                rel="noopener noreferrer"
+                className="mt-2 text-xs font-extrabold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 px-4 py-2 rounded-xl transition-all border border-emerald-200/50 block tracking-wide"
+              >
+                Click here if not redirected automatically →
+              </a>
+            )}
+
             <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
               <div className="bg-emerald-600 h-full rounded-full animate-pulse w-3/4"></div>
             </div>

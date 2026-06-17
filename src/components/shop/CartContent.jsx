@@ -24,7 +24,8 @@ export default function CartContent({
   const mrpSavings = totalMrp - cartTotal;
 
   // Issue 3: 5% Special Discount continues on orders with sale subtotal >= 200
-  const discount = cartTotal >= 200 ? Math.round(Math.min(cartTotal * 0.05, 50)) : 0;
+  // const discount = cartTotal >= 200 ? Math.round(Math.min(cartTotal * 0.05, 50)) : 0;
+  const discount = 0; // Currently disabled as per the latest requirements
   const totalBeforeDelivery = cartTotal - discount;
 
   // Tiered Delivery Threshold Logic - Evaluated directly on Subtotal (Sale Price)
