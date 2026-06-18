@@ -163,7 +163,8 @@ export default function App() {
       });
     });
 
-    const discount = cartTotal >= 200 ? Math.round(Math.min(cartTotal * 0.05, 50)) : 0;
+    // const discount = cartTotal >= 200 ? Math.round(Math.min(cartTotal * 0.05, 50)) : 0;
+    const discount = 0;
     const totalBeforeDelivery = cartTotal - discount;
     const deliveryFee = cartTotal < 200 ? 50 : 0; 
     const grandTotal = totalBeforeDelivery + deliveryFee;
@@ -228,7 +229,8 @@ export default function App() {
 
       const mrpSavings = totalMrp - cartTotal;
       const mrpSavingsText = mrpSavings > 0 ? `%0A*MRP Discount:* -₹${mrpSavings}` : '';
-      const discountMessageText = discount > 0 ? `%0A*Store Discount (5%25 Off):* -₹${Math.round(discount)}` : '';
+      // const discountMessageText = discount > 0 ? `%0A*Store Discount (5%25 Off):* -₹${Math.round(discount)}` : '';
+      const discountMessageText = '';
       const deliveryFeeMessageText = `%0A*Delivery Fee:* ${deliveryFee > 0 ? `₹${deliveryFee}` : 'FREE'}`;
       
       const message = `*New Order - ${CONFIG.brandName}*%0A%0A*Customer:* ${customerName}%0A*Address:* ${customerAddress}%0A%0A*Items:*%0A${orderLines.join('%0A')}%0A%0A*Total MRP:* ₹${totalMrp}${mrpSavingsText}%0A*Subtotal (Sale Price):* ₹${cartTotal}${discountMessageText}${deliveryFeeMessageText}%0A%0A*Grand Total: ₹${Math.round(grandTotal)}*${mrpSavings + discount > 0 ? `%0A%0A*Total Savings:* ₹${Math.round(mrpSavings + discount)} 🎉` : ''}`;

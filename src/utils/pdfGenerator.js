@@ -1,4 +1,3 @@
-// src/utils/pdfGenerator.js
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -92,7 +91,7 @@ export function generateInvoicePDF(orderData) {
     { label: "Total MRP:", val: `Rs. ${totalMrp}`, color: [107, 114, 128] },
     ...(mrpSavings > 0 ? [{ label: "MRP Discount:", val: `-Rs. ${mrpSavings}`, color: [5, 150, 105] }] : []),
     { label: "Subtotal (Sale Price):", val: `Rs. ${subtotal}`, color: [55, 65, 81] },
-    ...(discount > 0 ? [{ label: "Store Discount (5%):", val: `-Rs. ${discount}`, color: [220, 38, 38] }] : []),
+    // ...(discount > 0 ? [{ label: "Store Discount (5%):", val: `-Rs. ${discount}`, color: [220, 38, 38] }] : []),
     { label: "Delivery Fee:", val: deliveryFee > 0 ? `Rs. ${deliveryFee}` : "FREE", color: [55, 65, 81] }
   ];
 

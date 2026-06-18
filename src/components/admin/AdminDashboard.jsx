@@ -364,7 +364,8 @@ export default function AdminDashboard({ inventory, setInventory }) {
               const isPaid = order.paymentStatus === 'paid';
 
               const subtotal = order.subtotal || order.cartTotal || (order.items || []).reduce((acc, item) => acc + (item.total || 0), 0);
-              const discount = order.discountApplied !== undefined ? order.discountApplied : (subtotal >= 200 ? Math.round(Math.min(subtotal * 0.05, 50)) : 0);
+              // const discount = order.discountApplied !== undefined ? order.discountApplied : (subtotal >= 200 ? Math.round(Math.min(subtotal * 0.05, 50)) : 0);
+              const discount = order.discountApplied || 0;
               const totalBeforeDelivery = subtotal - discount;
               const deliveryFee = order.deliveryFee !== undefined ? order.deliveryFee : (subtotal < 200 ? 50 : 0); 
               const computedGrandTotal = order.grandTotal || (totalBeforeDelivery + deliveryFee);
@@ -401,7 +402,7 @@ export default function AdminDashboard({ inventory, setInventory }) {
                           deliveryFee: order.deliveryFee,
                           grandTotal: order.grandTotal,
                           date: order.timestamp ? order.timestamp.split(',')[0] : new Date().toLocaleDateString('en-IN'),
-                          items: order.items || [] // Maps the sub-array directly to layout generator safely
+                          items: order.items || [] 
                         })}
                         className="flex items-center gap-1 px-3 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg text-xs font-bold transition-colors border border-emerald-200 cursor-pointer shadow-xs"
                       >
@@ -428,7 +429,6 @@ export default function AdminDashboard({ inventory, setInventory }) {
                     </div>
                   </div>
 
-                  {/* Fix for Issue 1: Stacked cleanly with full key-value distribution to prevent squeezed text lines on mobile viewports */}
                   <div className="flex flex-col gap-1.5 shrink-0 border-t md:border-t-0 border-gray-100 pt-3 md:pt-0 min-w-[150px] w-full md:w-auto text-xs">
                     <div className="flex justify-between items-center w-full">
                       <span className="text-gray-500">Subtotal:</span>

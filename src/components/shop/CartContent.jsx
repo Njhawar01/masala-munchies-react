@@ -25,7 +25,7 @@ export default function CartContent({
 
   // Issue 3: 5% Special Discount continues on orders with sale subtotal >= 200
   // const discount = cartTotal >= 200 ? Math.round(Math.min(cartTotal * 0.05, 50)) : 0;
-  const discount = 0; // Currently disabled as per the latest requirements
+  const discount = 0;
   const totalBeforeDelivery = cartTotal - discount;
 
   // Tiered Delivery Threshold Logic - Evaluated directly on Subtotal (Sale Price)
@@ -157,12 +157,12 @@ export default function CartContent({
               <span>₹{cartTotal}</span>
             </div>
             
-            {discount > 0 && (
+            {/* {discount > 0 && (
               <div className="flex justify-between text-red-600 font-medium">
                 <span>Special Discount (5%)</span>
                 <span>-₹{discount}</span>
               </div>
-            )}
+            )} */}
             
             <div className="flex justify-between text-gray-500">
               <span>Delivery Fee</span>
