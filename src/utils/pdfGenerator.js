@@ -2,7 +2,6 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 export function generateInvoicePDF(orderData) {
-  // Safe extraction matching your exact layout variables
   const {
     billNo = 'N/A',
     customerName = '',
@@ -13,12 +12,12 @@ export function generateInvoicePDF(orderData) {
     deliveryFee = 0,
     grandTotal = 0,
     date = new Date().toLocaleDateString('en-IN'),
-    items = [] // Guaranteed array fallback to prevent .map() crashes
+    items = [],
+    buyerDetails = null
   } = orderData || {};
 
   const doc = new jsPDF();
   
-  // Your exact helper inline function
   const write = (text, x, y, size = 10, style = "normal", color = [17, 24, 39], opts = {}) => {
     doc.setFont("helvetica", style);
     doc.setFontSize(size);
@@ -26,37 +25,58 @@ export function generateInvoicePDF(orderData) {
     doc.text(text, x, y, opts);
   };
 
-  // Header Section (100% Original styling and strings)
+  // Header Section
   write("Masala Munchies", 15, 20, 22, "bold", [180, 83, 9]);
   write("Premium Homemade Savory Snacks & Khakhras", 15, 26, 10, "normal", [100, 116, 139]);
+  
   write("RETAIL BILL", 195, 20, 13, "bold", [17, 24, 39], { align: "right" });
   write(`Date: ${date}`, 195, 26, 10, "normal", [55, 65, 81], { align: "right" });
   write(`Bill No: ${billNo}`, 195, 32, 10, "normal", [55, 65, 81], { align: "right" });
   
   doc.setDrawColor(229, 231, 235);
-  doc.line(15, 37, 195, 37);
+  doc.line(15, 43, 195, 43);
   
-  // Billing Info Section
-  write("Bill To:", 15, 45, 10, "bold", [17, 24, 39]);
-  write(`Name: ${customerName}`, 15, 51, 10, "normal", [17, 24, 39]);
-  const splitAddress = doc.splitTextToSize(`Address: ${customerAddress}`, 180);
-  write(splitAddress, 15, 57, 10, "normal", [17, 24, 39]);
+  // Billing Info Section (Dynamically merges mapped buyer details)
+  write("Billed To:", 15, 51, 10, "bold", [17, 24, 39]);
   
-  // Fixed vertical alignment padding to prevent table collisions
-  const tableStartY = 57 + (splitAddress.length * 5) + 5;
+  let currentY = 57;
+  write(`Name: ${buyerDetails?.name || customerName}`, 15, currentY, 10, "normal", [17, 24, 39]);
+  currentY += 6;
+
+  if (buyerDetails) {
+    const splitAddress = doc.splitTextToSize(`Address: ${buyerDetails.address || customerAddress}`, 180);
+    write(splitAddress, 15, currentY, 10, "normal", [17, 24, 39]);
+    currentY += (splitAddress.length * 5) + 1;
+    
+    if (buyerDetails.pincode) { write(`Pincode: ${buyerDetails.pincode}`, 15, currentY, 10); currentY += 6; }
+    if (buyerDetails.mobile) { write(`Mobile: ${buyerDetails.mobile}`, 15, currentY, 10); currentY += 6; }
+    if (buyerDetails.gstin) { write(`GSTIN: ${buyerDetails.gstin}`, 15, currentY, 10); currentY += 6; }
+    if (buyerDetails.pan) { write(`PAN No.: ${buyerDetails.pan}`, 15, currentY, 10); currentY += 6; }
+    if (buyerDetails.stateCode) { write(`State Code: ${buyerDetails.stateCode}`, 15, currentY, 10); currentY += 6; }
+  } else {
+    const splitAddress = doc.splitTextToSize(`Address: ${customerAddress}`, 180);
+    write(splitAddress, 15, currentY, 10, "normal", [17, 24, 39]);
+    currentY += (splitAddress.length * 5) + 1;
+  }
+  
+  const tableStartY = currentY + 5;
   const tableColumns = ["Product Description", "Pack Size", "MRP", "Rate", "Qty", "Total"];
   
-  // Maps rows cleanly from the normalized items array structure
-  const tableRows = items.map(item => [
-    item.name || 'Unknown Product', 
-    item.weight || 'N/A', 
-    `Rs. ${item.mrp || item.price || 0}`, 
-    `Rs. ${item.price || 0}`, 
-    (item.qty || 0).toString(), 
-    `Rs. ${item.total || 0}`
-  ]);
+  const tableRows = items.map(item => {
+    // Graceful check mapping plain integers into visual grams without corrupting DB numbers
+    const rawWeight = item.weight !== undefined ? item.weight : 'N/A';
+    const weightText = String(rawWeight).endsWith('g') || rawWeight === 'N/A' ? String(rawWeight) : `${rawWeight}g`;
+    
+    return [
+      item.name || 'Unknown Product', 
+      weightText, 
+      `Rs. ${item.mrp || item.price || 0}`, 
+      `Rs. ${item.price || 0}`, 
+      (item.qty || 0).toString(), 
+      `Rs. ${item.total || 0}`
+    ];
+  });
   
-  // Your original Table Generator configuration
   autoTable(doc, {
     startY: tableStartY,
     head: [tableColumns],
@@ -84,14 +104,13 @@ export function generateInvoicePDF(orderData) {
   });
   
   const finalY = doc.lastAutoTable?.finalY || (tableStartY + (tableRows.length * 8) + 15);
-  let currentY = finalY + 10;
+  currentY = finalY + 10;
   
   const mrpSavings = totalMrp - subtotal;
   const summaryMetrics = [
     { label: "Total MRP:", val: `Rs. ${totalMrp}`, color: [107, 114, 128] },
     ...(mrpSavings > 0 ? [{ label: "MRP Discount:", val: `-Rs. ${mrpSavings}`, color: [5, 150, 105] }] : []),
     { label: "Subtotal (Sale Price):", val: `Rs. ${subtotal}`, color: [55, 65, 81] },
-    // ...(discount > 0 ? [{ label: "Store Discount (5%):", val: `-Rs. ${discount}`, color: [220, 38, 38] }] : []),
     { label: "Delivery Fee:", val: deliveryFee > 0 ? `Rs. ${deliveryFee}` : "FREE", color: [55, 65, 81] }
   ];
 

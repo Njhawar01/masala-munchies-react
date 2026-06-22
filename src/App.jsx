@@ -163,7 +163,6 @@ export default function App() {
       });
     });
 
-    // const discount = cartTotal >= 200 ? Math.round(Math.min(cartTotal * 0.05, 50)) : 0;
     const discount = 0;
     const totalBeforeDelivery = cartTotal - discount;
     const deliveryFee = cartTotal < 200 ? 50 : 0; 
@@ -229,7 +228,6 @@ export default function App() {
 
       const mrpSavings = totalMrp - cartTotal;
       const mrpSavingsText = mrpSavings > 0 ? `%0A*MRP Discount:* -₹${mrpSavings}` : '';
-      // const discountMessageText = discount > 0 ? `%0A*Store Discount (5%25 Off):* -₹${Math.round(discount)}` : '';
       const discountMessageText = '';
       const deliveryFeeMessageText = `%0A*Delivery Fee:* ${deliveryFee > 0 ? `₹${deliveryFee}` : 'FREE'}`;
       

@@ -20,6 +20,10 @@ export default function AdminDashboard({ inventory, setInventory }) {
   const [orders, setOrders] = useState([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
 
+  const [buyers, setBuyers] = useState([]);
+  const [loadingBuyers, setLoadingBuyers] = useState(false);
+  const [isSavingBuyers, setIsSavingBuyers] = useState(false);
+
   // Auto-Scroll & Focus management when expanding an existing or new product card
   useEffect(() => {
     if (expandedProductId) {
@@ -41,8 +45,9 @@ export default function AdminDashboard({ inventory, setInventory }) {
   }, [inventory]);
 
   useEffect(() => {
-    if (activeTab === 'orders' && idToken) {
-      fetchOrderHistory();
+    if (idToken) {
+      if (activeTab === 'orders') fetchOrderHistory();
+      if (buyers.length === 0) fetchBuyers();
     }
   }, [activeTab, idToken]);
 
@@ -77,6 +82,11 @@ export default function AdminDashboard({ inventory, setInventory }) {
       const response = await fetch(ordersUrl);
       const data = await response.json();
       
+      // Guard: Check for HTTP failure or explicit Firebase error flags
+      if (!response.ok || (data && data.error)) {
+        throw new Error(data?.error || `HTTP Status ${response.status}`);
+      }
+
       if (data) {
         const parsedOrders = Object.keys(data)
           .filter(key => data[key] !== null && data[key].items && data[key].items.length > 0)
@@ -93,6 +103,32 @@ export default function AdminDashboard({ inventory, setInventory }) {
       console.error("Failed to load history logs:", error);
     } finally {
       setLoadingOrders(false);
+    }
+  };
+
+  const fetchBuyers = async () => {
+    if (!idToken) return;
+    setLoadingBuyers(true);
+    try {
+      const response = await fetch(`${CONFIG.FIREBASE_URL}/buyers.json?auth=${idToken}`);
+      const data = await response.json();
+
+      // Guard: Halt state mutation if Firebase rejects the request
+      if (!response.ok || (data && data.error)) {
+        throw new Error(data?.error || `HTTP Status ${response.status}`);
+      }
+
+      if (data) {
+        const parsed = Array.isArray(data) ? data : Object.values(data).filter(Boolean);
+        setBuyers(parsed);
+      } else {
+        setBuyers([]);
+      }
+    } catch (error) {
+      console.error("Failed to load buyers:", error);
+      alert(`Error loading database records: ${error.message}`);
+    } finally {
+      setLoadingBuyers(false);
     }
   };
 
@@ -123,16 +159,48 @@ export default function AdminDashboard({ inventory, setInventory }) {
     }
   };
 
+  // --- Buyer Handlers ---
+  const handleAddBuyer = () => {
+    const newBuyer = { id: Date.now().toString(), name: '', address: '', pincode: '', mobile: '', gstin: '', pan: '', stateCode: '' };
+    setBuyers([newBuyer, ...buyers]);
+  };
+
+  const handleDeleteBuyer = (buyerId) => {
+    if (window.confirm("Are you sure you want to remove this buyer profile?")) {
+      setBuyers(prev => prev.filter(b => b.id !== buyerId));
+    }
+  };
+
+  const updateBuyerField = (buyerId, field, value) => {
+    setBuyers(prev => prev.map(b => b.id === buyerId ? { ...b, [field]: value } : b));
+  };
+
+  const handleSaveBuyers = async () => {
+    if (!idToken) return;
+    setIsSavingBuyers(true);
+    try {
+      const response = await fetch(`${CONFIG.FIREBASE_URL}/buyers.json?auth=${idToken}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(buyers)
+      });
+      if (!response.ok) throw new Error("Sync failed");
+      alert("Buyers database synced successfully!");
+    } catch (error) {
+      console.error(error);
+      alert("Failed to save buyer records.");
+    } finally {
+      setIsSavingBuyers(false);
+    }
+  };
+
+  // --- Inventory Handlers ---
   const existingCategories = [...new Set(localInventory.map(p => p.category).filter(Boolean))];
 
   const handleAddProduct = () => {
     const newId = Date.now().toString();
     const newProduct = {
-      id: newId,
-      name: "",
-      category: "Snacks", 
-      containsOnionGarlic: false, 
-      isBestseller: false, 
+      id: newId, name: "", category: "Snacks", containsOnionGarlic: false, isBestseller: false, 
       variants: [{ variantId: newId + 'v', weight: 200, mrp: 0, price: 0, stockLeft: 0, description: "", images: [] }]
     };
     setLocalInventory([newProduct, ...localInventory]);
@@ -289,24 +357,15 @@ export default function AdminDashboard({ inventory, setInventory }) {
           <h2 className="text-2xl font-black mb-6 text-center text-gray-900">Admin Access</h2>
           <form onSubmit={handleLogin} className="space-y-4">
             <input 
-              type="email" 
-              placeholder="Admin Email" 
-              value={email} 
-              onChange={e => setEmail(e.target.value)}
-              className="w-full bg-gray-50 border border-gray-200 px-4 py-3 rounded-xl focus:outline-emerald-600" 
-              required
+              type="email" placeholder="Admin Email" value={email} onChange={e => setEmail(e.target.value)}
+              className="w-full bg-gray-50 border border-gray-200 px-4 py-3 rounded-xl focus:outline-emerald-600" required
             />
             <input 
-              type="password" 
-              placeholder="Password" 
-              value={password} 
-              onChange={e => setPassword(e.target.value)}
-              className="w-full bg-gray-50 border border-gray-200 px-4 py-3 rounded-xl focus:outline-emerald-600" 
-              required 
+              type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)}
+              className="w-full bg-gray-50 border border-gray-200 px-4 py-3 rounded-xl focus:outline-emerald-600" required 
             />
             <button 
-              type="submit" 
-              disabled={isLoggingIn} 
+              type="submit" disabled={isLoggingIn} 
               className="w-full bg-gray-900 text-white font-bold py-3 rounded-xl hover:bg-gray-800 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isLoggingIn ? "Logging in..." : "Login"}
@@ -325,6 +384,7 @@ export default function AdminDashboard({ inventory, setInventory }) {
             <h2 className="text-2xl font-black text-gray-900 tracking-tight">Admin Operations Workspace</h2>
             <p className="text-xs text-gray-500">Audit your storefront listings and check on incoming logs.</p>
           </div>
+          
           {activeTab === 'inventory' && (
             <div className="flex gap-2 w-full sm:w-auto">
               <button onClick={handleAddProduct} className="flex-1 sm:flex-none px-4 py-2.5 bg-gray-900 text-white font-bold text-xs rounded-xl shadow-xs hover:bg-gray-800 cursor-pointer">
@@ -334,6 +394,17 @@ export default function AdminDashboard({ inventory, setInventory }) {
                 {isSaving ? "Syncing..." : "Save to Cloud"}
               </button>
             </div>
+          )}
+
+          {activeTab === 'buyers' && (
+             <div className="flex gap-2 w-full sm:w-auto">
+               <button onClick={handleAddBuyer} className="flex-1 sm:flex-none px-4 py-2.5 bg-gray-900 text-white font-bold text-xs rounded-xl shadow-xs hover:bg-gray-800 cursor-pointer">
+                 + Add Buyer
+               </button>
+               <button onClick={handleSaveBuyers} disabled={isSavingBuyers} className={`flex-1 sm:flex-none px-5 py-2.5 text-white font-bold text-xs rounded-xl shadow-xs transition-colors ${isSavingBuyers ? 'bg-gray-400 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700 cursor-pointer'}`}>
+                 {isSavingBuyers ? "Syncing..." : "Save Buyers"}
+               </button>
+             </div>
           )}
         </div>
 
@@ -350,10 +421,16 @@ export default function AdminDashboard({ inventory, setInventory }) {
           >
             Order History Logs
           </button>
+          <button 
+            onClick={() => setActiveTab('buyers')} 
+            className={`pb-2 border-b-2 transition-all cursor-pointer ${activeTab === 'buyers' ? 'border-orange-600 text-orange-600' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+          >
+            Buyers Directory
+          </button>
         </div>
       </div>
 
-      {activeTab === 'orders' ? (
+      {activeTab === 'orders' && (
         <div className="space-y-4">
           {loadingOrders ? (
             <div className="text-center py-12 font-bold text-gray-400 animate-pulse">Retrieving order database records...</div>
@@ -364,7 +441,6 @@ export default function AdminDashboard({ inventory, setInventory }) {
               const isPaid = order.paymentStatus === 'paid';
 
               const subtotal = order.subtotal || order.cartTotal || (order.items || []).reduce((acc, item) => acc + (item.total || 0), 0);
-              // const discount = order.discountApplied !== undefined ? order.discountApplied : (subtotal >= 200 ? Math.round(Math.min(subtotal * 0.05, 50)) : 0);
               const discount = order.discountApplied || 0;
               const totalBeforeDelivery = subtotal - discount;
               const deliveryFee = order.deliveryFee !== undefined ? order.deliveryFee : (subtotal < 200 ? 50 : 0); 
@@ -392,18 +468,22 @@ export default function AdminDashboard({ inventory, setInventory }) {
                         )}
                       </button>
                       <button
-                        onClick={() => generateInvoicePDF({
-                          billNo: order.billNo,
-                          customerName: order.customerName,
-                          customerAddress: order.customerAddress,
-                          totalMrp: order.totalMrp,
-                          subtotal: order.subtotal,
-                          discount: order.discountApplied || 0,
-                          deliveryFee: order.deliveryFee,
-                          grandTotal: order.grandTotal,
-                          date: order.timestamp ? order.timestamp.split(',')[0] : new Date().toLocaleDateString('en-IN'),
-                          items: order.items || [] 
-                        })}
+                        onClick={() => {
+                          const matchingBuyer = buyers.find(b => b.name && order.customerName && b.name.trim().toLowerCase() === order.customerName.trim().toLowerCase());
+                          generateInvoicePDF({
+                            billNo: order.billNo,
+                            customerName: order.customerName,
+                            customerAddress: matchingBuyer?.address || order.customerAddress,
+                            totalMrp: order.totalMrp,
+                            subtotal: order.subtotal,
+                            discount: order.discountApplied || 0,
+                            deliveryFee: order.deliveryFee,
+                            grandTotal: order.grandTotal,
+                            date: order.timestamp ? order.timestamp.split(',')[0] : new Date().toLocaleDateString('en-IN'),
+                            items: order.items || [],
+                            buyerDetails: matchingBuyer || null
+                          });
+                        }}
                         className="flex items-center gap-1 px-3 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg text-xs font-bold transition-colors border border-emerald-200 cursor-pointer shadow-xs"
                       >
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -421,7 +501,7 @@ export default function AdminDashboard({ inventory, setInventory }) {
                       <ul className="space-y-1">
                         {(order.items || []).map((item, idx) => (
                           <li key={idx} className="text-xs font-semibold text-gray-700 flex justify-between">
-                            <span>• {item.name} <span className="text-gray-400 font-normal">({item.weight})</span> <span className="text-emerald-700 font-bold">x{item.qty}</span></span>
+                            <span>• {item.name} <span className="text-gray-400 font-normal">({item.weight}{String(item.weight).endsWith('g') ? '' : 'g'})</span> <span className="text-emerald-700 font-bold">x{item.qty}</span></span>
                             <span className="text-gray-900 font-black">₹{item.total}</span>
                           </li>
                         ))}
@@ -456,7 +536,57 @@ export default function AdminDashboard({ inventory, setInventory }) {
             })
           )}
         </div>
-      ) : (
+      )}
+
+      {activeTab === 'buyers' && (
+        <div className="space-y-4">
+          {loadingBuyers ? (
+             <div className="text-center py-12 font-bold text-gray-400 animate-pulse">Retrieving buyer records...</div>
+          ) : buyers.length === 0 ? (
+             <div className="text-center py-16 bg-gray-50 border border-gray-200 text-gray-400 rounded-xl text-xs">No buyers stored in records yet.</div>
+          ) : (
+            buyers.map(buyer => (
+              <div key={buyer.id} className="bg-white border border-gray-200 rounded-xl p-4 md:p-6 relative shadow-sm hover:shadow-md transition-shadow">
+                <button onClick={() => handleDeleteBuyer(buyer.id)} className="absolute top-4 right-4 text-red-400 hover:text-red-600 p-1 cursor-pointer" title="Delete Buyer">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                </button>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pr-8">
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Buyer Name</label>
+                    <input type="text" value={buyer.name} placeholder="Name" onChange={e => updateBuyerField(buyer.id, 'name', e.target.value)} className="w-full bg-gray-50 border border-gray-200 px-3 py-2 rounded-lg text-sm font-semibold focus:outline-emerald-600" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Mobile No.</label>
+                    <input type="text" value={buyer.mobile} placeholder="+91..." onChange={e => updateBuyerField(buyer.id, 'mobile', e.target.value)} className="w-full bg-gray-50 border border-gray-200 px-3 py-2 rounded-lg text-sm font-semibold focus:outline-emerald-600" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">GSTIN</label>
+                    <input type="text" value={buyer.gstin} placeholder="GST Number" onChange={e => updateBuyerField(buyer.id, 'gstin', e.target.value)} className="w-full bg-gray-50 border border-gray-200 px-3 py-2 rounded-lg text-sm font-semibold focus:outline-emerald-600 uppercase" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">PAN No.</label>
+                    <input type="text" value={buyer.pan} placeholder="PAN" onChange={e => updateBuyerField(buyer.id, 'pan', e.target.value)} className="w-full bg-gray-50 border border-gray-200 px-3 py-2 rounded-lg text-sm font-semibold focus:outline-emerald-600 uppercase" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">State Code</label>
+                    <input type="text" value={buyer.stateCode} placeholder="e.g. 29" onChange={e => updateBuyerField(buyer.id, 'stateCode', e.target.value)} className="w-full bg-gray-50 border border-gray-200 px-3 py-2 rounded-lg text-sm font-semibold focus:outline-emerald-600" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Pincode</label>
+                    <input type="text" value={buyer.pincode} placeholder="Postal Code" onChange={e => updateBuyerField(buyer.id, 'pincode', e.target.value)} className="w-full bg-gray-50 border border-gray-200 px-3 py-2 rounded-lg text-sm font-semibold focus:outline-emerald-600" />
+                  </div>
+                  <div className="sm:col-span-2 md:col-span-3">
+                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Address</label>
+                    <textarea value={buyer.address} placeholder="Full building/street address" onChange={e => updateBuyerField(buyer.id, 'address', e.target.value)} rows="2" className="w-full bg-gray-50 border border-gray-200 px-3 py-2 rounded-lg text-sm focus:outline-emerald-600"></textarea>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {activeTab === 'inventory' && (
         <div className="space-y-4">
           {localInventory.map(product => {
             const isExpanded = expandedProductId === product.id;
