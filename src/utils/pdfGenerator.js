@@ -39,24 +39,24 @@ export function generateInvoicePDF(orderData) {
   // Billing Info Section (Dynamically merges mapped buyer details)
   write("Billed To:", 15, 51, 10, "bold", [17, 24, 39]);
   
-  let currentY = 57;
+  let currentY = 56;
   write(`Name: ${buyerDetails?.name || customerName}`, 15, currentY, 10, "normal", [17, 24, 39]);
-  currentY += 6;
+  currentY += 4.5; // Reduced from 6
 
   if (buyerDetails) {
     const splitAddress = doc.splitTextToSize(`Address: ${buyerDetails.address || customerAddress}`, 180);
     write(splitAddress, 15, currentY, 10, "normal", [17, 24, 39]);
-    currentY += (splitAddress.length * 5) + 1;
+    currentY += (splitAddress.length * 4.5) + 0.5; // Reduced from 5 and 1
     
-    if (buyerDetails.pincode) { write(`Pincode: ${buyerDetails.pincode}`, 15, currentY, 10); currentY += 6; }
-    if (buyerDetails.mobile) { write(`Mobile: ${buyerDetails.mobile}`, 15, currentY, 10); currentY += 6; }
-    if (buyerDetails.gstin) { write(`GSTIN: ${buyerDetails.gstin}`, 15, currentY, 10); currentY += 6; }
-    if (buyerDetails.pan) { write(`PAN No.: ${buyerDetails.pan}`, 15, currentY, 10); currentY += 6; }
-    if (buyerDetails.stateCode) { write(`State Code: ${buyerDetails.stateCode}`, 15, currentY, 10); currentY += 6; }
+    if (buyerDetails.pincode) { write(`Pincode: ${buyerDetails.pincode}`, 15, currentY, 10); currentY += 4.5; }
+    if (buyerDetails.mobile) { write(`Mobile: ${buyerDetails.mobile}`, 15, currentY, 10); currentY += 4.5; }
+    if (buyerDetails.gstin) { write(`GSTIN: ${buyerDetails.gstin}`, 15, currentY, 10); currentY += 4.5; }
+    if (buyerDetails.pan) { write(`PAN No.: ${buyerDetails.pan}`, 15, currentY, 10); currentY += 4.5; }
+    if (buyerDetails.stateCode) { write(`State Code: ${buyerDetails.stateCode}`, 15, currentY, 10); currentY += 4.5; }
   } else {
     const splitAddress = doc.splitTextToSize(`Address: ${customerAddress}`, 180);
     write(splitAddress, 15, currentY, 10, "normal", [17, 24, 39]);
-    currentY += (splitAddress.length * 5) + 1;
+    currentY += (splitAddress.length * 4.5) + 0.5; // Reduced from 5 and 1
   }
   
   const tableStartY = currentY + 5;
@@ -133,7 +133,7 @@ export function generateInvoicePDF(orderData) {
   
   doc.setDrawColor(229, 231, 235);
   doc.line(15, currentY, 195, currentY);
-  currentY += 8;
+  currentY += 5;
   
   // Footer Declaration Layout
   write("Declaration:", 15, currentY, 10, "bold", [17, 24, 39]);

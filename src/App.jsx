@@ -169,6 +169,21 @@ export default function App() {
     const grandTotal = totalBeforeDelivery + deliveryFee;
 
     try {
+      // Milestone 0: Dynamically fetch saved buyer records to match customer details for the PDF
+      let matchingBuyer = null;
+      try {
+        const buyersRes = await fetch(`${CONFIG.FIREBASE_URL}/buyers.json`);
+        if (buyersRes.ok) {
+          const buyersData = await buyersRes.json();
+          if (buyersData) {
+            const buyersList = Array.isArray(buyersData) ? buyersData : Object.values(buyersData).filter(Boolean);
+            matchingBuyer = buyersList.find(b => b.name && b.name.trim().toLowerCase() === customerName.trim().toLowerCase());
+          }
+        }
+      } catch (buyerErr) {
+        console.error("Could not fetch buyer details for matching:", buyerErr);
+      }
+
       // Milestone 1: Record Order inside Firebase Database Environment
       const counterResponse = await fetch(`${CONFIG.FIREBASE_URL}/counters.json`, {
         method: 'PATCH',
@@ -207,14 +222,15 @@ export default function App() {
         generateInvoicePDF({
           billNo,
           customerName,
-          customerAddress,
+          customerAddress: matchingBuyer?.address || customerAddress, // Prioritize saved DB address on match
           totalMrp,
           subtotal: cartTotal,
           discount: Math.round(discount),
           deliveryFee,
           grandTotal,
           date: today,
-          items: orderItemsForDb
+          items: orderItemsForDb,
+          buyerDetails: matchingBuyer // Safely pass down the matched profile
         });
       } catch (pdfError) {
         console.error("Critical error while generating transactional local PDF:", pdfError);
